@@ -1,51 +1,65 @@
 # 🧠 CORTEX
 
-**Claude Code that remembers your project, and gets sharper the longer you work.**
+**A tiered, self-auditing memory architecture for Claude Code.**
 
-Every new chat normally starts from zero. You re-explain the architecture, repeat your preferences and rediscover last week's decisions. With CORTEX installed, Claude opens each session already knowing the project: what was decided and why, how you like to work, and what's still open.
+Claude Code is stateless between chats. CORTEX adds the missing layer: a hierarchical, provenance-tracked project memory with a coverage ledger, hook-driven capture and a hard token budget. Claude opens every session already oriented, with decisions, rationale, conventions and open threads in context, without paying for them in context window.
 
-CORTEX is not a pile of notes. It's a memory system with structure and judgment:
+It's a single skill: markdown, three stdlib-only Python scripts and two hooks. It has no dependencies, no server, no vector database and no embeddings. The memory is plain markdown, so you can read it, `grep` it and `git diff` it.
 
-- **It knows what's worth keeping.** Every candidate fact must pass one test: *would a future session be better informed for having this?* Noise, dead ends and chatter about the memory system itself are dropped.
-- **It knows where things go.** Current truth, per-chat history and raw transcripts live in separate layers, so Claude reads a few hundred tokens up front and drills down only when a question needs it.
-- **It knows what it doesn't know.** A coverage ledger tracks exactly which lines of which chats are in memory. Claude never claims to remember something it hasn't actually logged, and it flags answers it couldn't verify.
-- **It keeps itself honest.** Facts carry source tags, answers cite `file:line`, and `/cortex audit` catches duplicates, drift and oversized files.
-- **It asks before it acts.** Anything that reads many chats or changes your settings is shown to you first.
-
-It's one Claude Code skill: markdown, three small Python scripts and two hooks. It has no dependencies, no server and no database. The memory is plain markdown that you can read, edit and `git diff`.
-
-> 📖 **[Open the user guide](skills/cortex/guide/cortex-user-guide.html)**: a visual walkthrough of the layers, the ledger and every command. Download it and open it in your browser.
+> 📖 **[Open the user guide](skills/cortex/guide/cortex-user-guide.html)**: an illustrated walkthrough of the layers, the ledger and every command. Download it and open it in your browser.
 
 ---
 
-## ✨ Why you'll like it
+## 🧬 Architecture
+
+CORTEX is built around four ideas.
+
+### 1. Tiered memory with a token budget
+Memory is a hierarchy, and each tier has a defined job, a size cap and a retrieval rule:
+
+```
+L0  CLAUDE.md block + memory/INDEX.md    always loaded · ~3k-token budget · status, file map, working style
+L1  memory/<topic>/*.md                  current truth · ~150 lines per file · every fact source-tagged
+L2  memory/sessions/*.md                 per-chat history and fine detail · searched by grep, read by window
+L3  raw Claude Code transcripts          ground truth · reached only through the redacting extractor
+```
+
+Retrieval goes top-down. Claude starts at the index, follows it to the right L1 file, and descends to L2 and L3 only when a question demands it. L0 stays small enough to load every time, and nothing is lost because the deeper layers keep the detail. `/cortex status` measures L0 against the budget and warns you before it bloats.
+
+### 2. A coverage ledger: memory with accounting
+`memory/LEDGER.md` records, per chat, exactly which line ranges are `live` (recorded as the chat ran), `skipped` (before you started), `paused`, `excluded` or still `backfill`.
+
+- Claude marks a range as covered only after it has actually logged it, in the same step as the memory it describes.
+- Ranges are never relabelled and a live range is never stretched across a pause, so the ledger can't overstate what memory holds.
+- Backfill is incremental and idempotent. `/cortex all` works only on uncovered ranges, so you can run it as often as you like.
+- Chats open in another window are detected and deferred, never mined mid-flight.
+
+### 3. Hook-driven capture and recovery
+Two hooks run the loop without you thinking about it:
+
+- **`SessionStart`** injects a one-line state summary: this chat's id and transcript, the recording mode and any unlogged tails in other chats. Claude recovers those gaps first.
+- **`Stop`** watches the distance between the transcript and the ledger. When it grows too large, it gives Claude a rate-limited nudge to checkpoint. The hook never writes the ledger itself.
+
+A crashed, closed or abandoned chat therefore leaves a recoverable trace instead of a hole. Both hooks fail silent and do nothing in projects that haven't enabled CORTEX.
+
+### 4. Provenance, privacy and consent as defaults
+- **Provenance:** facts carry source tags (`<id8> L<line>`), and `/cortex recall` answers with `memory/<file>:<line>` citations, a confidence level and an explicit list of anything unverified.
+- **Privacy:** a redaction pass strips API keys, tokens, passwords and cloud credentials before text reaches memory. It never stores anyone's email or phone number, and never opens `.env*` or credential files.
+- **Consent:** anything that reads many chats, deletes memory or changes git, hooks or settings is shown to you first and waits for your OK.
+- **Control:** pause per chat or per project, exclude a chat for good, or `forget` a topic. Forgetting purges every match and records the label, never the content, so the topic is not re-learned.
+
+---
+
+## ✨ What that gets you
 
 | | |
 |---|---|
-| 🪜 **Layered, so it stays cheap** | Only a small index (~3k tokens) is always loaded. Details are pulled in on demand, so your context window isn't spent on history. |
-| 🔁 **Self-maintaining** | Claude checkpoints decisions and facts as the chat runs. A hook flags anything a crashed or abandoned chat left unlogged, so Claude can recover it. |
-| ⏪ **Backfills your past chats** | `/cortex all` mines the transcripts you already have and adds them to memory. |
-| 🧾 **Honest coverage ledger** | `LEDGER.md` records exactly which lines of which chats are in memory, so nothing is double-counted and nothing is silently missing. |
-| 🎛️ **You stay in control** | Pause, resume, exclude a chat, or forget a topic at any time. Anything that reads many chats or changes hooks or settings is shown to you first and waits for your OK. |
-| 🔒 **Privacy by default** | Secrets, keys, tokens and anyone's email or phone number are redacted before storage. `.env*` and credential files are never opened. |
-| 🔍 **Cited recall** | `/cortex recall <question>` answers from memory with file and line citations and flags what it couldn't verify. |
-
----
-
-## 🏗️ How it works
-
-Memory lives in a `memory/` folder inside your project, in four layers:
-
-```
-L0  CLAUDE.md block + memory/INDEX.md    always loaded: status, a map of every file, how you work
-L1  memory/<topic>/*.md                  current truth, kept lean (~150 lines per file)
-L2  memory/sessions/*.md                 per-chat history and detail
-L3  raw Claude Code transcripts          used only when a step explicitly needs them
-```
-
-- **Read path:** Claude starts from L0, follows the index to the right L1 file, and goes down to L2 or L3 only if it needs to.
-- **Write path:** durable facts go to L1 with a source tag. Subtle details go to the session log in L2.
-- **Hooks:** a `SessionStart` hook tells Claude this chat's id, the recording mode and any unlogged gaps. A `Stop` hook gives Claude a gentle, rate-limited nudge to log what's worth keeping when the ledger falls far behind the transcript. Only Claude marks lines as covered, and only after it has logged them. Both hooks stay silent in projects that haven't enabled CORTEX.
+| ⚡ **Cold start in seconds** | A new chat begins already knowing the project's decisions, conventions and open questions. |
+| 🔎 **Cited recall** | Ask `/cortex recall why did we pick Postgres?` and get an answer with file and line references. |
+| ⏪ **Retroactive memory** | `/cortex all` mines the transcripts you already have and merges them into current truth. |
+| 🛡️ **Self-audit** | `/cortex audit` checks for duplicated facts, index and file drift, and files over their caps. A cold-start test is available too. |
+| 🧾 **Auditable** | Every claim traces to a chat and a line, and every range to the ledger. |
+| 🪶 **Cheap** | You pay for a small index on every chat. Everything else is pulled in on demand. |
 
 ---
 
