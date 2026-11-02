@@ -76,7 +76,7 @@
    - `since` and `exclude <date>` match a chat's first local date; `last N` means the N most recently active chats.
    - Chats flagged `active` are deferred ("open in another chat").
 2. **Exclusions by description:** use only the `--preview` first message; never read further into a chat that might be excluded.
-3. **Plan:** `SKILL.md` has already shown the plan and got an OK. Don't ask again.
+3. **Plan:** `SKILL.md` has already shown the plan and got an OK, or decided it was a small top-up that needs none. Don't ask again.
 4. **Measure:** `extract_transcript.py <file> <IANA_TZ> <a> <b> | wc -c` per range.
 5. **Mine:** with more than about 150k tokens in total, use parallel subagents (at most 5 at once, brief below). Group tiny chats; split big ones at compaction-summary lines, or failing that near the midpoint, with a 10-line context note. Otherwise mine them yourself.
 6. **Per chat, in order:**

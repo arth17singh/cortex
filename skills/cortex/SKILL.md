@@ -16,7 +16,7 @@ allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/ledger_scan.py *) Bash(p
 Read the first word of the request as the subcommand. If it's empty or unknown, run **help**.
 
 ## Rules for every subcommand
-- **The user has full control.** Before anything that reads many chats, deletes memory, or changes git, hooks or recording settings, show exactly what will happen and wait for an OK (`--yes` skips this).
+- **The user has full control.** Before anything that reads many chats, deletes memory, or changes git, hooks or recording settings, show exactly what will happen and wait for an OK (`--yes` skips this). Small top-ups of chats that were already recording are the exception: they just run (see **all**, step 4).
 - **`memory/LEDGER.md` is the only coverage record.**
   - Mark only lines that were actually logged.
   - Never read or store `excluded` chats, or `skipped`/`paused` ranges, unless the user includes them.
@@ -63,9 +63,10 @@ Record **this chat from now on**; no past chats are read.
    - Label chats that never recorded (manual mode or paused) as such.
    - List chats flagged `active` as "deferred: open in another chat".
 3. **If there's nothing to do,** say so and stop.
-4. **Otherwise show the plan:** chats and ranges with dates, previews and an estimate (`wc -c` ÷ 4); what's excluded, skipped or deferred; and what's already tracked. Wait for an OK unless `--yes`.
-5. Follow `build.md` Steps 0–9, with Step 3 for the confirmed ranges. Integrate L1 updates and update the ledger per chat.
-6. **This chat's row:** keep existing ranges and only open or extend `live` from <now>. If there's no row, write `skipped 1-<now-1>; live <now>-<now>`. If the user wants the whole chat, capture 1..now-1 first and write `live 1-<now>`.
+4. **Small top-ups just run:** if every candidate is the unlogged tail of a chat that was already recording (its row has a `live` or `mined` range), nothing is `include-skipped`, and the total is under ~50k characters, don't ask. Do it, then say in one line what was saved (e.g. "Saved lines 173–190 of 62cba7d1."). Mention anything deferred.
+5. **Otherwise show the plan:** chats and ranges with dates, previews and an estimate (`wc -c` ÷ 4); what's excluded, skipped or deferred; and what's already tracked. Wait for an OK unless `--yes`. This covers chats that never recorded, `include-skipped`, and large backfills, where there is a real choice to make.
+6. Follow `build.md` Steps 0–9, with Step 3 for the confirmed ranges. Integrate L1 updates and update the ledger per chat.
+7. **This chat's row:** keep existing ranges and only open or extend `live` from <now>. If there's no row, write `skipped 1-<now-1>; live <now>-<now>`. If the user wants the whole chat, capture 1..now-1 first and write `live 1-<now>`.
 
 ### status
 Read-only. Run:
