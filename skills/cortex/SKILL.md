@@ -61,16 +61,10 @@ Record **this chat from now on**; no past chats are read.
 6. **This chat's row:** keep existing ranges and only open or extend `live` from <now>. If there's no row, write `skipped 1-<now-1>; live <now>-<now>`. If the user wants the whole chat, capture 1..now-1 first and write `live 1-<now>`.
 
 ### status
-Read-only. **First run the dashboard and show its output verbatim in a code block:**
+Read-only. Run:
 `python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_status.py "${CLAUDE_PROJECT_DIR}" --session ${CLAUDE_SESSION_ID}`
 
-It covers activity, the L0 budget, what's current (`now`), what's next, the ledger totals and anything needing `attention`. Then add only what the dashboard can't know:
-- **Settings:** recording mode; whether this chat is paused; hooks installed (look for `cortex_hook.py` in `~/.claude/settings.json` or `.claude/settings.json`); the commit setting.
-- **Extra warnings:**
-  - untracked chats older than about 25 days (Claude Code deletes transcripts after `cleanupPeriodDays`, default 30, so suggest `/cortex all`);
-  - an index out of sync with the files, or facts duplicated across L1 files;
-  - `memory/` not git-ignored when commit is `no`.
-- **Next action:** suggest one.
+Your entire reply is its output, verbatim, in one code block. Write nothing before or after it: no preamble, no commentary, no settings recap, no suggestions. The dashboard already covers settings, warnings and the next action.
 
 ### save [note]
 - **With no note:** run a full checkpoint (§4 of the `CLAUDE.md` block).

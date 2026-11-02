@@ -6,7 +6,7 @@ usage: cortex_status.py <project_dir> [--session <id>]
 Prints activity, budget, what memory says is current, what's next, and anything needing attention.
 Reuses the helpers in cortex_hook.py so the one-line startup status and this view never disagree.
 """
-import glob, json, os, re, subprocess, sys
+import glob, json, os, re, subprocess, sys, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -82,6 +82,37 @@ def context_reads(root, sid):
     return results, lines, size // 4, total
 
 
+def line_time(transcript, lineno):
+    """Epoch seconds of the timestamp on a transcript line (1-based), or None."""
+    try:
+        with open(transcript, encoding='utf-8', errors='replace') as f:
+            for i, raw in enumerate(f, 1):
+                if i == lineno:
+                    ts = json.loads(raw).get('timestamp', '')
+                    return time.mktime(time.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) - time.timezone
+    except (OSError, ValueError, AttributeError):
+        pass
+    return None
+
+
+def settings(root):
+    """(hooks installed, commit setting) read from the settings files and git."""
+    hooks = False
+    for f in (Path(os.environ.get('CLAUDE_CONFIG_DIR') or Path.home() / '.claude') / 'settings.json',
+              root / '.claude' / 'settings.json', root / '.claude' / 'settings.local.json'):
+        try:
+            hooks |= 'cortex_hook.py' in f.read_text()
+        except OSError:
+            pass
+    git = subprocess.run(['git', '-C', str(root), 'rev-parse', '--is-inside-work-tree'], capture_output=True, text=True)
+    if git.returncode != 0:
+        commit = 'n/a (not a git repo)'
+    else:
+        ignored = subprocess.run(['git', '-C', str(root), 'check-ignore', '-q', 'memory/INDEX.md']).returncode == 0
+        commit = 'no (memory/ git-ignored)' if ignored else 'yes (memory/ tracked)'
+    return hooks, commit
+
+
 def bar(done, total, width=10):
     filled = min(width, round(width * done / total)) if total else 0
     return '█' * filled + '░' * (width - filled)
@@ -145,11 +176,25 @@ def main():
         if this:
             live = [b or a for k, a, b in h.ranges(this.get('ranges') or '') if k in ('live', 'mined')]
             if live:
-                print(f"this chat  {bar(min(max(live), this['lines']), this['lines'])} logged through line "
-                      f"{max(live)} of {this['lines']}")
+                end = min(max(live), this['lines'])
+                saved = line_time(Path(scan.get('transcripts', '')) / f"{this['id']}.jsonl", end)
+                behind = this['lines'] - end
+                when = f"last saved to memory {h.age(time.time() - saved)}" if saved else f"saved through line {end}"
+                print(f"this chat  {when}  \u00b7  " + (f"{behind} transcript lines since" if behind else 'fully saved'))
+            else:
+                print("this chat  not recording  \u00b7  /cortex start to record it")
+        old_untracked = []
+        for c in scan.get('chats', []):
+            first = (c.get('first') or '')[:10]
+            if c.get('state') == 'untracked' and c.get('backfill') and first:
+                try:
+                    if time.time() - time.mktime(time.strptime(first, '%Y-%m-%d')) > 25 * 86400:
+                        old_untracked.append(c['short'])
+                except ValueError:
+                    pass
         warnings = scan.get('warnings', [])
     except Exception:
-        warnings = ['ledger scan unavailable']
+        warnings, old_untracked = ['ledger scan unavailable'], []
 
     watch = []
     if gaps:
@@ -160,14 +205,36 @@ def main():
     if unverified:
         watch.append(f"{unverified} fact{'s' * (unverified != 1)} still marked unverified")
     if l0 > L0_BUDGET:
-        watch.append(f"L0 is over budget ({l0} > {L0_BUDGET} tok): trim the index")
+        watch.append(f"L0 over budget ({l0:,} > {L0_BUDGET:,} tok)")
+    elif l0 > 0.85 * L0_BUDGET:
+        watch.append(f"L0 at {l0 / L0_BUDGET:.0%} of budget")
+    if old_untracked:
+        watch.append(f"{len(old_untracked)} untracked chat{'s' * (len(old_untracked) != 1)} near transcript expiry")
     watch += warnings[:2]
+    hooks, commit = settings(root)
+    if not hooks:
+        watch.append('hooks not installed')
+    logs = 'off' if not h.logs_enabled(root) else 'on'
+    print(f"settings   recording {mode}  \u00b7  hooks {'\u2713' if hooks else '\u2717'}  \u00b7  logs {logs}  \u00b7  commit {commit}")
     print(rule)
     if watch:
         for i, w in enumerate(watch):
-            print(('attention  ⚠ ' if i == 0 else '           ⚠ ') + w)
+            print(('attention  \u26a0 ' if i == 0 else '           \u26a0 ') + w)
     else:
-        print('attention  ✓ nothing needs attention')
+        print('attention  \u2713 nothing needs attention')
+
+    if old_untracked or gaps:
+        tip = '/cortex all  (recover unlogged and untracked chats)'
+    elif l0 > 0.85 * L0_BUDGET:
+        tip = '/cortex audit  (consolidate L0 back under budget)'
+    elif not hooks:
+        tip = '/cortex config hooks=install'
+    elif stale or unverified:
+        tip = '/cortex audit  (re-verify stale and unverified facts)'
+    else:
+        tip = None
+    if tip:
+        print(f"suggest    \u25b8 {tip}")
 
 
 if __name__ == '__main__':
