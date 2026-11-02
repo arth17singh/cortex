@@ -96,14 +96,122 @@ def logs_enabled(root):
     return True
 
 
+MEMORY_BUDGET = 3000   # tokens: INDEX.md + preferences, a backstop only. It is the measured size with every
+                       # structural cap below full (real projects' average line lengths); the caps trigger first.
+WHERE_MAX_AGE = 14     # days before a dated "Where we are" bullet should move down to its L1 file
+MAX_LOG_LINES = 10     # session logs listed in the index map; older lines move to sessions/README.md
+MAX_FOLDER_FILES = 6   # topic files listed per folder; beyond this the folder gets its own _index.md
+MAX_PREF_LINES = 40    # one-line preferences
+MAPS = ('_index.md', 'README.md')  # routing files, not topic files or session logs
+
+
 def memory_stats(root):
-    """Cheap filesystem facts for the telemetry panel: (l0_tokens, l1_files, l2_sessions)."""
+    """Cheap filesystem facts: (memory L0 tokens, L1 topic files, L2 session logs)."""
     mem = root / 'memory'
     l0 = sum(f.stat().st_size for f in (mem / 'INDEX.md', mem / 'team' / 'user-preferences.md') if f.is_file())
     skip = {'sessions', 'log', '_templates', 'team'}
     l1 = [f for d in mem.iterdir() if d.is_dir() and d.name not in skip and not d.name.startswith('.')
-          for f in d.glob('*.md')]
-    return l0 // 4, len(l1), len(list((mem / 'sessions').glob('*.md')))
+          for f in d.glob('*.md') if f.name not in MAPS]
+    l2 = [f for f in (mem / 'sessions').glob('*.md') if f.name not in MAPS]
+    return l0 // 4, len(l1), len(l2)
+
+
+def cortex_block(root):
+    """The text between the CORTEX markers in the project's CLAUDE.md, or ''."""
+    f = root / 'CLAUDE.md'
+    if not f.is_file():
+        return ''
+    m = re.search(r'<!-- CORTEX:BEGIN.*?<!-- CORTEX:END -->', f.read_text(encoding='utf-8', errors='replace'), re.S)
+    return m.group(0) if m else ''
+
+
+def imports(text, base):
+    """Paths of `@` imports in CLAUDE.md-style text, ignoring code fences and code spans (as Claude Code does)."""
+    text = re.sub(r'```.*?```', ' ', text, flags=re.S)
+    text = re.sub(r'`[^`\n]*`', ' ', text)
+    for tok in re.findall(r'(?<!\S)@(\S+)', text):
+        p = Path(os.path.expanduser(tok))
+        yield (p if p.is_absolute() else base / p).resolve()
+
+
+def l0_parts(root):
+    """(rules tokens, memory tokens, rules state) for what this project loads in every chat.
+
+    rules = the CORTEX block plus anything it imports other than the index and preferences
+    (followed up to 4 hops, like Claude Code). state: 'current' (RULES.md matches the skill's copy),
+    'differs', 'v4' (pre-v5 layout: no memory/RULES.md), 'broken' (an import target is missing) or 'none'.
+    """
+    mem = root / 'memory'
+    memory_files = {(mem / 'INDEX.md').resolve(), (mem / 'team' / 'user-preferences.md').resolve()}
+    memory = sum(f.stat().st_size for f in memory_files if f.is_file())
+    block = cortex_block(root)
+    rules, missing, seen = len(block.encode()), False, set()
+    todo = [(t, 1) for t in imports(block, root)]
+    while todo:
+        path, hop = todo.pop()
+        if path in memory_files or path in seen or hop > 4:
+            continue
+        seen.add(path)
+        if not path.is_file():
+            missing = True
+            continue
+        text = path.read_text(encoding='utf-8', errors='replace')
+        rules += len(text.encode())
+        todo += [(t, hop + 1) for t in imports(text, path.parent)]
+    rules_file, master = mem / 'RULES.md', HERE.parent / 'reference' / 'rules.md'
+    if not block:
+        state = 'none'
+    elif missing:
+        state = 'broken'
+    elif not rules_file.is_file():
+        state = 'v4'
+    elif master.is_file() and rules_file.read_bytes() != master.read_bytes():
+        state = 'differs'
+    else:
+        state = 'current'
+    return rules // 4, memory // 4, state
+
+
+def consolidation_reasons(root, mem_tok):
+    """Why memory L0 should be consolidated now (empty list = it shouldn't). Structural caps come first."""
+    mem, why = root / 'memory', []
+    idx = (mem / 'INDEX.md').read_text(encoding='utf-8', errors='replace')
+    m = re.search(r'^## Map: session logs.*?$(.*?)(?=^## |\Z)', idx, re.M | re.S)
+    logs = len(re.findall(r'^- ', m.group(1), re.M)) if m else 0
+    if logs > MAX_LOG_LINES:
+        why.append(f"{logs} session logs listed in the map (cap {MAX_LOG_LINES})")
+    skip = {'sessions', 'log', '_templates', 'team'}
+    for d in sorted(mem.iterdir()):
+        if d.is_dir() and d.name not in skip and not d.name.startswith('.') and not (d / '_index.md').is_file():
+            n = len([f for f in d.glob('*.md') if f.name not in MAPS])
+            if n > MAX_FOLDER_FILES:
+                why.append(f"{d.name}/ has {n} topic files listed (cap {MAX_FOLDER_FILES}; give it an _index.md)")
+    old = stale_where(root)
+    if old:
+        why.append(f"{len(old)} \"Where we are\" bullet{'s' * (len(old) != 1)} older than {WHERE_MAX_AGE} days")
+    prefs = mem / 'team' / 'user-preferences.md'
+    if prefs.is_file():
+        n = len(re.findall(r'^- ', prefs.read_text(encoding='utf-8', errors='replace'), re.M))
+        if n > MAX_PREF_LINES:
+            why.append(f"{n} preference lines (cap {MAX_PREF_LINES})")
+    if mem_tok > MEMORY_BUDGET:
+        why.append(f"memory L0 is {mem_tok:,} tokens (ceiling {MEMORY_BUDGET:,})")
+    return why
+
+
+def stale_where(root, days=WHERE_MAX_AGE):
+    """Dated "Where we are" bullets older than `days`, excluding open items (those never age out)."""
+    old, now = [], time.time()
+    for b in where_we_are(root):
+        m = re.search(r'\((\d{4}-\d{2}-\d{2})\)', b)
+        if not m or b.lower().startswith('open:'):
+            continue
+        try:
+            if now - time.mktime(time.strptime(m.group(1), '%Y-%m-%d')) > days * 86400:
+                old.append(b)
+        except ValueError:
+            pass
+    return old
 
 
 STATE_DIR = Path(tempfile.gettempdir()) / 'cortex-hook'
@@ -139,6 +247,8 @@ def snapshot(root):
 def layer(rel):
     if rel == 'LEDGER.md':
         return 'ledger'
+    if rel.rsplit('/', 1)[-1] in MAPS:
+        return 'map'
     if rel.startswith('sessions/'):
         return 'L2'
     if rel.startswith('log/') or rel == 'CHANGELOG.md':
@@ -235,7 +345,7 @@ def where_we_are(root):
 
 
 def next_steps(root, sid):
-    logs = [f for f in (root / 'memory' / 'sessions').glob('*.md') if f.name != 'README.md']
+    logs = [f for f in (root / 'memory' / 'sessions').glob('*.md') if f.name not in MAPS]
     logs.sort(key=lambda f: f.stat().st_mtime, reverse=True)
     others = [f for f in logs if sid[:8] not in f.name]
     for f in (others or logs):
@@ -253,6 +363,8 @@ def l1_health(root, days=30):
         if not d.is_dir() or d.name in skip or d.name.startswith('.'):
             continue
         for f in d.glob('*.md'):
+            if f.name in MAPS:
+                continue
             text = f.read_text(encoding='utf-8', errors='replace')
             unverified += len(section(f, 'not yet verified'))
             m = re.search(r'Last updated:\s*(\d{4}-\d{2}-\d{2})', '\n'.join(text.splitlines()[:8]))
@@ -291,6 +403,21 @@ def session_start(data, root):
         pass
     if data.get('source') == 'compact':
         lines.append("After compaction: keep appending to this chat's existing session log (listed in its ledger row).")
+    budget_note = ''
+    try:
+        _, mem_tok, rules_state = l0_parts(root)
+        if rules_state == 'broken':
+            lines.append("The CORTEX block in CLAUDE.md imports a file that doesn't exist; tell the user to run /cortex upgrade.")
+        elif rules_state == 'differs':
+            lines.append("memory/RULES.md differs from the skill's copy; mention /cortex upgrade to the user once.")
+        if rules_state in ('current', 'differs'):
+            reasons = consolidation_reasons(root, mem_tok)
+            if reasons:
+                lines.append("Consolidate memory before other work (\"Consolidation\" in memory/PROTOCOL.md): "
+                             + '; '.join(reasons) + '.')
+                budget_note = f"⚠ memory needs consolidating ({reasons[0]})"
+    except Exception:
+        pass
     context = ' '.join(lines)
     try:  # seed the snapshot so the first Stop pulse reports only this chat's changes
         write_state(STATE_DIR / f'{sid}.snap.json', snapshot(root))
@@ -307,6 +434,8 @@ def session_start(data, root):
         parts.append(f"last write {fresh[0]}")
     if gaps:
         parts.append(f"⚠ {len(gaps)} unlogged tail{'s' * (len(gaps) != 1)}, recovering")
+    if budget_note:
+        parts.append(budget_note)
     if data.get('source') == 'compact':
         parts.append('resumed after compaction')
     msg = '  ·  '.join(parts) + '  ·  /cortex status'

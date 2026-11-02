@@ -1,6 +1,6 @@
-# CORTEX build and backfill procedure (v4)
+# CORTEX build and backfill procedure (v5)
 
-`/cortex start` uses it with **scope = none**. `/cortex all` uses it with **scope = all**, plus any `only`/`since`/`last`/`exclude`/`include-skipped` options.
+`/cortex start` uses it with **scope = none**. `/cortex all` uses it with **scope = all**, plus any `only`/`since`/`last`/`exclude`/`include-skipped` options. `/cortex upgrade` runs only Step 0's upgrade and Steps 6–8.
 
 **Variables:** `${CLAUDE_SKILL_DIR}`, `${CLAUDE_SESSION_ID}` and `${CLAUDE_PROJECT_DIR}` mean the values printed at the top of `SKILL.md`; they aren't substituted inside this file. All `memory/` paths are relative to the project root. `<id8>` = the first 8 characters of a transcript id.
 
@@ -29,12 +29,19 @@
 ## Step 0: Detect the state
 - **`memory/INDEX.md` exists:** this is an **update**.
   - Read the index and `LEDGER.md`, then merge. Never overwrite good content.
-  - **Upgrading from v3 or older:**
+  - **Upgrading from v4 (or older) to v5.** Detect by content, not the version marker: the project is pre-v5 if `memory/RULES.md` is missing or the `CLAUDE.md` block doesn't import it.
+    1. **Refuse while another chat is live:** if the scanner flags any other chat `active`, stop and ask the user to close or pause those chats first; they still follow the old rules and would edit the index mid-upgrade.
+    2. **Back up** `CLAUDE.md`, `memory/INDEX.md`, `memory/team/user-preferences.md` and `memory/PROTOCOL.md` to `memory/.backups/<YYYY-MM-DD-HHMM>-pre-v5/`.
+    3. **Copy the rules:** `cp ${CLAUDE_SKILL_DIR}/reference/rules.md memory/RULES.md`.
+    4. **Rewrite the index** to the v5 template (`PROTOCOL.md` after step 6): add `TZ:` to line 2 (from the old block or `PROTOCOL.md`); date each "Where we are" bullet with the `Last updated:` date of the L1 file it links to (today only if it links none), so bullets don't all age out on the same day; turn the L1 table into map lines that keep every noun from the old "Covers" and "Load when" columns; turn the L2 table into session-log lines that keep its "Covers" text and add the decisions and rejected options from each log's headings. Move rows beyond the newest ~10 to `sessions/README.md`. Nothing from the old tables may be lost: grep 10 distinctive nouns from the old index in the new one.
+    5. **Carry over project lines:** diff the old block against `reference/claude-block-v4.md` (older blocks may lack its §5 Telemetry); any line that isn't template text (e.g. the topic-routing line) is project-specific. Routing goes into the map; anything else moves to the project's own section of `CLAUDE.md`, outside the markers.
+    6. **Rewrite `PROTOCOL.md` and `_templates/`** from the v5 template (`reference/protocol-template.md`, sections 1–3), keeping `PROTOCOL.md`'s config values (commit setting, timezone, exclusions, forgotten topics).
+    7. **Swap the block last:** replace the old block with the v5 stub (`reference/claude-block.md`). Leave `AGENTS.md` and other tools' files alone, and tell the user they still hold the old inline rules.
+    8. **Verify:** run `/cortex status`; it must show the rules as current and the memory budget. Then tell the user to start a new chat, since this one still has the old rules in context.
+  - **Upgrading from v3 or older:** first apply these, then the v5 upgrade above:
     1. Rename session logs from `_sN-` to `_<id8>-`, using the ledger's chat-to-log mapping.
     2. Create `_templates/`.
-    3. Rewrite `PROTOCOL.md` from the template.
-    4. Replace the `CLAUDE.md` block (Step 7).
-    5. Move the "Recording" config to the index line only.
+    3. Move the "Recording" config to the index line only.
   - **If `LEDGER.md` is missing:** create it from the session-log `Transcript:` headers as `mined`, but only where a header names a single non-overlapping range. List anything ambiguous for the user as `untracked`.
 - **`memory/` exists but isn't CORTEX's:** ask first, or use `.memory/` and adjust every path.
 - **Otherwise:** a fresh build.
@@ -84,10 +91,10 @@ Use `_templates/l1.md`, source tags, and "What lives where".
 Verify each claim (in code, or with the extractor on the cited lines) before applying it. Fix dates and paraphrased quotes.
 
 ## Step 6: Write `memory/INDEX.md`
-Follow the index template in `PROTOCOL.md`: "Where we are" ≤8 one-line bullets with no commands or numbers, the L1 table, and the L2 table with the newest ~10 logs. Set the "Recording" line.
+Follow the index template in `PROTOCOL.md`: line 2 with Recording and TZ; "Where we are" ≤8 dated one-line bullets with no commands or numbers; the topic-file map with every file's distinctive nouns and triggers; the session-log map with the newest ~10 logs, each naming its topics, decisions and rejected options. The map is how Claude finds old and subtle information, so favour complete nouns over brevity, within the memory budget.
 
 ## Step 7: Install `CLAUDE.md`, hooks, git setting, auto-memory
-1. **`CLAUDE.md` block:** insert `reference/claude-block.md` into the project's `CLAUDE.md` (replace an older block between the CORTEX markers), keeping other content.
+1. **Rules and `CLAUDE.md` block:** `cp ${CLAUDE_SKILL_DIR}/reference/rules.md memory/RULES.md`, then insert the stub from `reference/claude-block.md` into the project's `CLAUDE.md` with `{{SKILL_DIR}}` set to the resolved `${CLAUDE_SKILL_DIR}` (replace an older block between the CORTEX markers), keeping other content.
 2. **Recording mode:** ask once if unset: `auto` (recommended) or `manual`.
 3. **Hooks:** check `~/.claude/settings.json` and `.claude/settings.json` for a command containing `cortex_hook.py`. If it's missing, show the user this snippet and, with their OK, merge it into the file they choose:
    - back up first;
@@ -107,8 +114,8 @@ Follow the index template in `PROTOCOL.md`: "Where we are" ≤8 one-line bullets
 
 ## Step 8: Self-check (fix every failure)
 - [ ] The index and the files on disk match both ways; caps hold (`PROTOCOL.md`).
-- [ ] L0 size: `wc -c` of the `CLAUDE.md` block + `INDEX.md` + preferences ≤ about 12,000 characters (≈3k tokens).
-- [ ] `grep -n '{{' CLAUDE.md memory/PROTOCOL.md memory/INDEX.md` returns nothing; the `@memory/...` imports sit outside code spans.
+- [ ] Memory caps hold (`PROTOCOL.md` "Caps"), and `/cortex status` shows no consolidation reason. `memory/RULES.md` is byte-identical to `reference/rules.md` (`cmp`).
+- [ ] `grep -n '{{' CLAUDE.md memory/PROTOCOL.md memory/INDEX.md` returns nothing; the three `@memory/...` imports each sit on their own line, outside code spans.
 - [ ] No fact appears in two L1 files: grep 5 key numbers and paths.
 - [ ] `ledger_scan.py --current ${CLAUDE_SESSION_ID}` shows no `backfill` except what the user chose not to mine, and no warnings.
 - [ ] Hooks installed or declined; auto-memory is only the pointer.
@@ -122,7 +129,7 @@ Cover:
 - what was created or updated;
 - the chats covered, excluded and skipped;
 - the recording mode, hooks and commit setting;
-- the measured L0 size (characters ÷ 4);
+- the measured rules size and memory budget use (characters ÷ 4);
 - anything important discovered;
 - the self-check results;
 - that it's safe to clear the chat.

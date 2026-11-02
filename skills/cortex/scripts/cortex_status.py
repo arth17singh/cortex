@@ -14,19 +14,30 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import cortex_hook as h  # noqa: E402
 
-L0_BUDGET = 3000  # tokens
-
-
-def l0_tokens(root):
-    """Tokens CORTEX always loads: index + preferences + the CLAUDE.md block (~4 bytes per token)."""
-    mem, size = root / 'memory', 0
-    for f in (mem / 'INDEX.md', mem / 'team' / 'user-preferences.md'):
-        size += f.stat().st_size if f.is_file() else 0
-    claude = root / 'CLAUDE.md'
-    if claude.is_file():
-        m = re.search(r'<!-- CORTEX:BEGIN.*?<!-- CORTEX:END -->', claude.read_text(encoding='utf-8', errors='replace'), re.S)
-        size += len(m.group(0).encode()) if m else 0
-    return size // 4
+def routing_quality(root):
+    """(topic files missing from the map, % of L1 bullets with a source tag, logs with line-ranged headings, logs)."""
+    mem = root / 'memory'
+    maps = ''.join(f.read_text(encoding='utf-8', errors='replace')
+                   for f in [mem / 'INDEX.md', *mem.glob('*/_index.md')] if f.is_file())
+    skip = {'sessions', 'log', '_templates', 'team'}
+    missing, bullets, tagged = [], 0, 0
+    tag = re.compile(r'\((?:[0-9a-f]{8}(?: L[\d-]+)?|code: [^)]+)\)')
+    for d in mem.iterdir():
+        if not d.is_dir() or d.name in skip or d.name.startswith('.'):
+            continue
+        for f in d.glob('*.md'):
+            if f.name in h.MAPS:
+                continue
+            if not re.search(r'(?<![\w-])' + re.escape(f.stem) + r'(?=\.md|:|`)', maps):
+                missing.append(f'{d.name}/{f.name}')
+            for line in f.read_text(encoding='utf-8', errors='replace').splitlines():
+                if line.lstrip().startswith('- '):
+                    bullets += 1
+                    tagged += bool(tag.search(line))
+    logs = [f for f in (mem / 'sessions').glob('*.md') if f.name not in h.MAPS]
+    ranged = sum(bool(re.search(r'^###.*\(L\d+-\d+\)', f.read_text(encoding='utf-8', errors='replace'), re.M))
+                 for f in logs)
+    return missing, (100 * tagged // bullets if bullets else 0), ranged, len(logs)
 
 
 def touches_memory(name, inp, mem):
@@ -128,8 +139,10 @@ def main():
         return
     mem = root / 'memory'
     mode = h.recording_mode(root)
-    l0, l1, l2 = h.memory_stats(root)
-    l0 = l0_tokens(root)
+    _, l1, l2 = h.memory_stats(root)
+    rules_tok, mem_tok, rules_state = h.l0_parts(root)
+    l0 = rules_tok + mem_tok
+    budget = h.MEMORY_BUDGET
     spark, writes = h.activity(root)
     fresh = h.freshest(root)
     rule = '─' * 66
@@ -138,14 +151,19 @@ def main():
     print(rule)
     print(f"activity   {spark}  {writes} memory file{'s' * (writes != 1)} touched in 7 days"
           + (f"  ·  last {fresh[0]} ({fresh[1]})" if fresh else ''))
-    print(f"budget     L0 {bar(l0, L0_BUDGET)} {l0 / 1000:.1f}k / {L0_BUDGET // 1000}k tok"
-          f"  ·  {l1} L1 topic{'s' * (l1 != 1)}  ·  {l2} L2 chat log{'s' * (l2 != 1)}")
+    rules_label = {'current': 'current', 'differs': 'differs from skill', 'v4': 'v4, inline',
+                   'broken': 'import missing', 'none': 'no CORTEX block'}[rules_state]
+    print(f"budget     memory {bar(mem_tok, budget)} {mem_tok / 1000:.1f}k / {budget / 1000:.0f}k tok"
+          f"  ·  rules {rules_tok / 1000:.1f}k tok ({rules_label})")
+    missing, sourced, ranged, nlogs = routing_quality(root)
+    print(f"routing    map names {l1 - len(missing)}/{l1} topic files  ·  {sourced}% of L1 facts sourced"
+          f"  ·  {ranged}/{nlogs} logs line-ranged")
 
     reads = context_reads(root, sid)
     if reads:
         n, lines, tok, total = reads
         share = f"  ·  ~{(l0 + tok) / total * 100:.0f}% of this chat's {total / 1000:.1f}k context" if total else ''
-        print(f"in context L0 {l0 / 1000:.1f}k tok always loaded  ·  pulled in this chat: {n} read{'s' * (n != 1)}, "
+        print(f"in context {l0 / 1000:.1f}k tok always loaded  ·  pulled in this chat: {n} read{'s' * (n != 1)}, "
               f"{lines:,} lines, ~{tok / 1000:.1f}k tok{share}")
 
     now = h.where_we_are(root)
@@ -205,10 +223,16 @@ def main():
         watch.append(f"{stale[0]} not updated in {stale[1]} days")
     if unverified:
         watch.append(f"{unverified} fact{'s' * (unverified != 1)} still marked unverified")
-    if l0 > L0_BUDGET:
-        watch.append(f"L0 over budget ({l0:,} > {L0_BUDGET:,} tok)")
-    elif l0 > 0.85 * L0_BUDGET:
-        watch.append(f"L0 at {l0 / L0_BUDGET:.0%} of budget")
+    if rules_state == 'broken':
+        watch.append('the CORTEX block in CLAUDE.md imports a file that does not exist')
+    elif rules_state == 'v4':
+        watch.append('this project uses the v4 rules layout')
+    elif rules_state == 'differs':
+        watch.append("memory/RULES.md differs from the skill's copy")
+    reasons = h.consolidation_reasons(root, mem_tok) if rules_state != 'v4' else []
+    watch += [f"consolidate: {r}" for r in reasons]
+    if missing:
+        watch.append(f"{len(missing)} topic file{'s' * (len(missing) != 1)} missing from the map: {', '.join(missing[:3])}")
     if old_untracked:
         watch.append(f"{len(old_untracked)} untracked chat{'s' * (len(old_untracked) != 1)} near transcript expiry")
     if 'no Recording line' in mode:
@@ -229,8 +253,10 @@ def main():
 
     if old_untracked or gaps:
         tip = '/cortex all  (recover unlogged and untracked chats)'
-    elif l0 > 0.85 * L0_BUDGET:
-        tip = '/cortex audit  (consolidate L0 back under budget)'
+    elif rules_state in ('broken', 'v4', 'differs'):
+        tip = '/cortex upgrade  (move this project to the current rules)'
+    elif reasons or missing:
+        tip = '/cortex audit  (consolidate memory and repair the map)'
     elif not hooks:
         tip = '/cortex config hooks=install'
     elif stale or unverified:

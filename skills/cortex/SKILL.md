@@ -1,12 +1,12 @@
 ---
 name: cortex
-description: "CORTEX: layered, self-maintaining project memory. Subcommands: start (record from now), all (backfill untracked past chats), status, save, pause/resume, exclude/include, forget, recall, audit, config, help. Use when the user runs /cortex."
-argument-hint: "help | start [--from-chat-start] | all [only <chat>] [since DATE] [last N] [exclude X] [include-skipped] [--yes] | status | save [note] | pause [--project] | resume [--project] | exclude <chat> | include <chat> | forget <topic> | recall <question> | audit | config [key=value]"
+description: "CORTEX: layered, self-maintaining project memory. Subcommands: start (record from now), upgrade (move a project to the current rules), all (backfill untracked past chats), status, save, pause/resume, exclude/include, forget, recall, audit, config, help. Use when the user runs /cortex."
+argument-hint: "help | upgrade | start [--from-chat-start] | all [only <chat>] [since DATE] [last N] [exclude X] [include-skipped] [--yes] | status | save [note] | pause [--project] | resume [--project] | exclude <chat> | include <chat> | forget <topic> | recall <question> | audit | config [key=value]"
 disable-model-invocation: true
 allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/ledger_scan.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/extract_transcript.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_status.py *)
 ---
 
-# CORTEX (v4)
+# CORTEX (v5)
 
 **Request:** `/cortex $ARGUMENTS`
 - **This chat:** session `${CLAUDE_SESSION_ID}` (short id = its first 8 characters). Find its transcript with `ls ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/*/${CLAUDE_SESSION_ID}.jsonl`.
@@ -31,12 +31,19 @@ Read the first word of the request as the subcommand. If it's empty or unknown, 
   - Subtle details go to the session log; L1 stays lean, with source tags.
   - Drop noise, including narrative about the memory system itself.
 - **Missing memory:** if `memory/INDEX.md` doesn't exist, every subcommand except help, status and config offers `start` (no history) or `all` (with history) first.
-- **Day-to-day rules** are the `CLAUDE.md` block (`${CLAUDE_SKILL_DIR}/reference/claude-block.md`). Conventions, caps and the audit are in `memory/PROTOCOL.md`.
+- **Day-to-day rules** are `memory/RULES.md`, a byte-for-byte copy of `${CLAUDE_SKILL_DIR}/reference/rules.md`, imported by the stub in `CLAUDE.md` (`reference/claude-block.md`). Conventions, caps, consolidation and the audit are in `memory/PROTOCOL.md`.
+- **Old projects:** if `memory/INDEX.md` exists but `memory/RULES.md` doesn't, the project is on v4. Every subcommand except help, status and config offers `/cortex upgrade` first.
 
 ## Subcommands
 
 ### help
 List the subcommands with one-line descriptions and two examples. If memory exists, add a 3-line status: recording mode, `backfill` line count, and whether hooks are installed.
+
+### upgrade
+Bring this project to the current rules and layout. Show what will change and wait for an OK.
+- **Pre-v5 project** (no `memory/RULES.md`): follow `${CLAUDE_SKILL_DIR}/reference/build.md` Step 0, "Upgrading from v4 (or older) to v5", then Steps 6–8.
+- **v5 project whose `RULES.md` differs from the skill's copy:** show `diff memory/RULES.md ${CLAUDE_SKILL_DIR}/reference/rules.md`, then on OK copy the skill's version over it.
+- Finish by telling the user to start a new chat, since this one still has the old rules in context.
 
 ### start [--from-chat-start]
 Record **this chat from now on**; no past chats are read.
@@ -67,7 +74,7 @@ Read-only. Run:
 Your entire reply is its output, verbatim, in one code block. Write nothing before or after it: no preamble, no commentary, no settings recap, no suggestions. The dashboard already covers settings, warnings and the next action.
 
 ### save [note]
-- **With no note:** run a full checkpoint (§4 of the `CLAUDE.md` block).
+- **With no note:** run a full checkpoint ("Checkpoint" in `RULES.md`).
 - **With a note:** store it in its owning L1 file, with a source tag, and in the session log, even if this chat is paused. Confirm where it went.
 
 ### pause [--project]
@@ -98,7 +105,7 @@ Then offer `/cortex all only <chat>`.
 The ledger is unchanged.
 
 ### recall <question>
-1. **Search** following the `CLAUDE.md` block's reading playbook (§2): index, L1, session logs (grep, then read windows), then raw chats via `--grep`.
+1. **Search** following "Reading" in `RULES.md`: the map, L1, session logs (grep, then read windows), then raw chats via `--grep`.
 2. **Answer** with short quotes and citations (`memory/<file>:<line>` or `(<id8> L<line>)`), with confidence and anything unverified flagged.
 3. **Fix** wrong or missing memory if this chat is recording, unless the topic is on the Forgotten topics list.
 
@@ -111,6 +118,7 @@ Run the audit in `PROTOCOL.md` plus `build.md` Step 8 (cold-start test only if a
 - `timezone=<IANA>`
 - `exclude-default=<list>`
 - `logs=on|off`: the live telemetry (the hook's panel and Claude's `⟦CORTEX⟧` lines); updates a `Logs:` marker in the index.
+- `rules=import|inline`: `inline` copies `RULES.md` into the `CLAUDE.md` block (for tools that don't follow `@` imports); `import` restores the stub.
 - `hooks=install|remove`: shows the settings change and asks first.
 
 With no arguments, show the current values. Mention that `cleanupPeriodDays` in `~/.claude/settings.json` controls how long Claude Code keeps transcripts, which limits how far back `/cortex all` can reach.
