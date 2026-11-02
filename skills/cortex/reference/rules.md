@@ -70,11 +70,12 @@ Memory work is silent. Never say in a reply that you read, wrote, logged or chec
 
 ## Recall line (the one memory line you do write)
 When an answer depends on something from memory that the user didn't say in this chat (a past decision, a rejected option, an old number or fact), end the reply with one line that shows what memory supplied and how much of it:
-`<marker> recalled · <layers> · <scope> · <the gist>`
-- **marker:** how much memory the answer drew on: `◈` one source, `◈◈` two or three, `◈◈◈` four or more (a source is one topic file, session log or raw chat you used).
+`<marker> recalled · <layers> · <sources> · ~<lines> lines · <age or span> · <the gist>`
+- **lines:** about how many lines of memory you read for this answer from L1–L3 (whole files read, plus the windows around grep hits). The always-loaded L0 isn't counted: a recall from L0 alone shows `L0` and no line count.
+- **marker:** how much memory the answer drew on, by whichever is larger: `◈` under ~50 lines from one source, `◈◈` ~50–300 lines or 2–3 sources, `◈◈◈` over ~300 lines or 4+ sources (a source is one topic file, session log or raw chat you used).
 - **layers:** the deepest layer you read, or a range when you used several: `L0` (always loaded), `L1` (topic file), `L2` (session log), `L3` (raw chat), e.g. `L1–L2`.
-- **scope:** for one source, its age since it was decided or recorded (`today`, `3d`, `11w`, `5mo`); for several, how many and the span they cover (`6 sources · Aug–Oct`).
+- **sources and age or span:** for one source, omit the count and give its age since it was decided or recorded (`today`, `3d`, `11w`, `5mo`); for several, how many and the span they cover (`6 sources · Aug–Oct`).
 - **gist:** what memory contributed, at most 12 words for one source and 20 for several; a label, not a quote, since the detail belongs in the answer.
 - **flags:** if a memory you relied on is `superseded` (name the old and the new: "Radar → in-house model"), `unverified` (no source tag and not checked in code) or `stale` (only a status, something in progress or temporary like "A/B running" or "blocked on review", recorded more than 14 days ago and not confirmed since; decisions, rejections and facts never go stale by age), add a second line for it alone, so the warning isn't buried: `◈ recalled · L1 · 6w · superseded · fraud scoring: Stripe Radar → in-house model`.
 - If the user asks to see what was recalled, quote it with `file:line`.
-- Never for preferences, these rules, or memory the answer didn't need. No file names. Examples: `◈ recalled · L2 · 12w · Kafka rejected as event bus: ops burden for a team of four` · `◈◈◈ recalled · L1–L2 · 6 sources · Aug–Oct · search: OpenSearch, 3 shards, 180 ms p99, BM25-only rejected`
+- Never for preferences, these rules, or memory the answer didn't need. No file names. Examples: `◈ recalled · L2 · ~6 lines · 12w · Kafka rejected as event bus: ops burden for a team of four` · `◈◈◈ recalled · L1–L2 · 6 sources · ~420 lines · Aug–Oct · search: OpenSearch, 3 shards, 180 ms p99, BM25-only rejected`

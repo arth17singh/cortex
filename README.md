@@ -88,14 +88,15 @@ You can see CORTEX working, without it getting in your way.
 **When memory changes an answer, you see it, and how much.** The one exception to the silence is a recall line at the end of a reply, written only when the answer depended on something you didn't say in this chat:
 
 ```
-◈ recalled · L2 · 12w · Kafka rejected as event bus: ops burden for a team of four
-◈◈◈ recalled · L1–L2 · 6 sources · Aug–Oct · search: OpenSearch, 3 shards, 180 ms p99, BM25-only rejected
+◈ recalled · L2 · ~6 lines · 12w · Kafka rejected as event bus: ops burden for a team of four
+◈◈◈ recalled · L1–L2 · 6 sources · ~420 lines · Aug–Oct · search: OpenSearch, 3 shards, 180 ms p99, BM25-only rejected
 ◈ recalled · L1 · 6w · superseded · fraud scoring: Stripe Radar → in-house model
 ```
 
-- **The marker shows how much was drawn on:** `◈` one source, `◈◈` two or three, `◈◈◈` four or more.
+- **The marker shows how much was drawn on,** by sources or lines read, whichever is larger: `◈` a small single recall, `◈◈` ~50–300 lines or 2–3 sources, `◈◈◈` over ~300 lines or 4+ sources.
+- **`~420 lines`** is about how much memory was read for this answer (topic files, session logs, chats; the always-loaded map isn't counted). It's Claude's estimate, hence the `~`.
 - **Layers show how deep it dug:** `L0` is the always-loaded map, `L1` a topic file, `L2` a session log, `L3` a raw chat.
-- **Scope:** a single memory's age, or for a broad recall how many sources and the span they cover.
+- **Scope:** a single memory's age, or for a broad recall how many sources and the time span they cover.
 - **The gist:** up to 12 words for one source, 20 for many. The detail is in the answer itself.
 - **Flags get their own line,** so a warning is never buried: `superseded` (a newer decision replaced an older one, shown as old → new), `unverified` (no source), or `stale` (a temporary status, like "A/B running", older than 14 days; decisions and facts never go stale by age).
 
