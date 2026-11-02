@@ -12,7 +12,7 @@ It's a single skill: markdown, three stdlib-only Python scripts and two hooks. I
 
 ## 🧬 Architecture
 
-CORTEX is built around four ideas.
+CORTEX is built around five ideas.
 
 ### 1. Tiered memory with a token budget
 Memory is a hierarchy, and each tier has a defined job, a size cap and a retrieval rule:
@@ -47,6 +47,24 @@ A crashed, closed or abandoned chat therefore leaves a recoverable trace instead
 - **Privacy:** a redaction pass strips API keys, tokens, passwords and cloud credentials before text reaches memory. It never stores anyone's email or phone number, and never opens `.env*` or credential files.
 - **Consent:** anything that reads many chats, deletes memory or changes git, hooks or settings is shown to you first and waits for your OK.
 - **Control:** pause per chat or per project, exclude a chat for good, or `forget` a topic. Forgetting purges every match and records the label, never the content, so the topic is not re-learned.
+
+### 5. Live telemetry
+You can see CORTEX working. The `SessionStart` hook prints a status panel in your terminal at the top of every chat, and Claude prints one-line `⟦CORTEX⟧` entries as it reads and writes memory:
+
+```
+╭─ CORTEX ▸ memory online ────────────────────────────────────────────────╮
+│ chat a1b2c3d4 · recording auto · ledger: live 1-340                     │
+│ L0 ≈2.1k tok · L1 12 files · L2 31 session logs                         │
+│ coverage 94% of tracked transcript lines · 2 gap(s) queued for recovery │
+╰─────────────────────────────────────────────────────────────────────────╯
+
+⟦CORTEX⟧ recall ▸ L1 engineering/auth.md · 118 lines · trust: sourced L1
+⟦CORTEX⟧ commit ▸ L2 2026-11-01_a1b2c3d4-auth.md (L341-388) + L1 engineering/auth.md · ledger live → 388
+⟦CORTEX⟧ recover ▸ 9f3e21aa L120-410 → sessions/2026-10-30_9f3e21aa-billing.md
+▸ CORTEX checkpoint due · chat a1b2c3d4 · 112 unlogged lines (ledger 388 → transcript 500)
+```
+
+The panel and the checkpoint notice come from the hooks and are computed from your files. The `⟦CORTEX⟧` lines are written by Claude under the rules in the `CLAUDE.md` block, and only for actions it actually performed. Turn it all off with `/cortex config logs=off`, or set `CORTEX_QUIET=1` to silence the hook output alone.
 
 ---
 

@@ -76,6 +76,14 @@ Commands: `/cortex help`. A `CORTEX:` line at the top of the context (from the S
 4. Index "Where we are" refreshed.
 5. Tell the user.
 
+### 5. Telemetry (so the user can see CORTEX working)
+Unless the index says `Logs: off`, print one short line, in this format, after each memory action. Log only what you actually did; never log an action you skipped.
+- Read: `⟦CORTEX⟧ recall ▸ L1 <topic>/<file>.md · <n> lines · trust: <code|user|sourced L1|session log>`
+- Write: `⟦CORTEX⟧ commit ▸ L2 <session log> (L<a>-<b>) + L1 <file> · ledger live → <n>`
+- Recovery: `⟦CORTEX⟧ recover ▸ <id8> L<a>-<b> → <session log>`
+- Checkpoint: `⟦CORTEX⟧ checkpoint ▸ ledger live → <n> · L1 <k> files touched · index refreshed`
+Keep it to one line per action, with no commentary.
+
 Caps, rollovers, templates and the audit are in `PROTOCOL.md`.
 <!-- CORTEX:END -->
 =====

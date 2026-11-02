@@ -9,6 +9,9 @@ Stop: if this chat is recording and its ledger `live` end is far behind the tran
   ledger. It never edits the ledger itself: only Claude may mark lines as covered, after it has
   actually logged them. Nudges are rate-limited per chat.
 
+Both events also emit a `systemMessage`, a compact telemetry panel the user sees in their terminal
+(put `Logs: off` anywhere in memory/INDEX.md, or set CORTEX_QUIET=1, to silence it).
+
 It is silent and exits 0 whenever the project has no CORTEX memory or anything goes wrong.
 """
 import json, os, re, subprocess, sys, tempfile
@@ -63,19 +66,51 @@ def ranges(text):
     return out
 
 
+def logs_enabled(root):
+    if os.environ.get('CORTEX_QUIET'):
+        return False
+    for line in (root / 'memory' / 'INDEX.md').read_text(encoding='utf-8', errors='replace').splitlines():
+        if re.search(r'\blogs:\s*off\b', line, re.I):
+            return False
+    return True
+
+
+def memory_stats(root):
+    """Cheap filesystem facts for the telemetry panel: (l0_tokens, l1_files, l2_sessions)."""
+    mem = root / 'memory'
+    l0 = sum(f.stat().st_size for f in (mem / 'INDEX.md', mem / 'team' / 'user-preferences.md') if f.is_file())
+    skip = {'sessions', 'log', '_templates', 'team'}
+    l1 = [f for d in mem.iterdir() if d.is_dir() and d.name not in skip and not d.name.startswith('.')
+          for f in d.glob('*.md')]
+    return l0 // 4, len(l1), len(list((mem / 'sessions').glob('*.md')))
+
+
+def panel(title, rows):
+    width = max(len(title) + 4, *(len(r) for r in rows)) + 2
+    top = f'\u256d\u2500 {title} ' + '\u2500' * (width - len(title) - 3) + '\u256e'
+    body = [f'\u2502 {r.ljust(width - 1)}\u2502' for r in rows]
+    return '\n'.join([top, *body, '\u2570' + '\u2500' * width + '\u256f'])
+
+
 def session_start(data, root):
     sid, tp = data.get('session_id', ''), data.get('transcript_path', '')
     mode = recording_mode(root)
     state, rtext = ledger_row(root, sid)
+    gaps, covered_pct = [], None
     lines = [f"CORTEX: this chat is {sid[:8]} (session {sid}); transcript {tp}. Recording: {mode}."]
     lines.append(f"This chat's ledger row: {state} {rtext}." if state else "This chat has no ledger row yet.")
     try:
         out = subprocess.run([sys.executable, str(HERE / 'ledger_scan.py'), str(root), '--current', sid, '--json'],
                              capture_output=True, text=True, timeout=20)
         scan = json.loads(out.stdout)
+        chats = [c for c in scan.get('chats', []) if c.get('state') != 'excluded']
+        total = sum(c.get('lines', 0) for c in chats)
+        open_lines = sum(b - a + 1 for c in chats for a, b in c.get('backfill', []))
+        covered_pct = round(100 * (total - open_lines) / total) if total else None
         todo = [f"{c['short']} {', '.join(f'{a}-{b}' for a, b in c['backfill'])}" for c in scan.get('chats', [])
                 if c.get('backfill') and 'live' in (c.get('ranges') or '')]
         untracked = [c['short'] for c in scan.get('chats', []) if c.get('state') == 'untracked' and c.get('backfill')]
+        gaps = todo
         if todo:
             lines.append('Recover these unlogged tails before other work (CLAUDE.md §1): ' + '; '.join(todo) + '.')
         if untracked:
@@ -86,7 +121,21 @@ def session_start(data, root):
         pass
     if data.get('source') == 'compact':
         lines.append("After compaction: keep appending to this chat's existing session log (listed in its ledger row).")
-    print(' '.join(lines))
+    context = ' '.join(lines)
+    if not logs_enabled(root):
+        print(context)
+        return
+    l0, l1, l2 = memory_stats(root)
+    ledger = rtext if state else 'no row yet'
+    rows = [f"chat {sid[:8]} \u00b7 recording {mode} \u00b7 ledger: {ledger}",
+            f"L0 \u2248{l0 / 1000:.1f}k tok \u00b7 L1 {l1} file{'s' * (l1 != 1)} \u00b7 L2 {l2} session log{'s' * (l2 != 1)}"]
+    if covered_pct is not None:
+        rows.append(f"coverage {covered_pct}% of tracked transcript lines \u00b7 {len(gaps)} gap(s) queued for recovery")
+    if data.get('source') == 'compact':
+        rows.append('resumed after compaction \u00b7 re-attaching session log')
+    msg = panel('CORTEX \u25b8 memory online', rows)
+    print(json.dumps({'systemMessage': msg,
+                      'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': context}}))
 
 
 def stop(data, root):
@@ -125,7 +174,11 @@ def stop(data, root):
         msg = (f"CORTEX: this chat ({sid[:8]}) has no session log or ledger row yet, and recording is {mode}. "
                f"If anything so far passes the storage test, create the session log and the ledger row "
                f"(live 1-{n}) per CLAUDE.md §4. If nothing does, add the row as 'skipped 1-{n}'. Then stop.")
-    print(json.dumps({'hookSpecificOutput': {'hookEventName': 'Stop', 'additionalContext': msg}}))
+    out = {'hookSpecificOutput': {'hookEventName': 'Stop', 'additionalContext': msg}}
+    if logs_enabled(root):
+        out['systemMessage'] = (f"\u25b8 CORTEX checkpoint due \u00b7 chat {sid[:8]} \u00b7 "
+                                f"{n - covered_to} unlogged lines (ledger {covered_to} \u2192 transcript {n})")
+    print(json.dumps(out))
 
 
 def main():

@@ -116,6 +116,7 @@ Run the audit in `PROTOCOL.md` plus `build.md` Step 8 (cold-start test only if a
 - `commit=no|yes`: `.gitignore` handling, with a warning on yes.
 - `timezone=<IANA>`
 - `exclude-default=<list>`
+- `logs=on|off`: the live telemetry (the hook's panel and Claude's `⟦CORTEX⟧` lines); updates a `Logs:` marker in the index.
 - `hooks=install|remove`: shows the settings change and asks first.
 
 With no arguments, show the current values. Mention that `cleanupPeriodDays` in `~/.claude/settings.json` controls how long Claude Code keeps transcripts, which limits how far back `/cortex all` can reach.
