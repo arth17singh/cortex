@@ -70,13 +70,14 @@ You can see CORTEX working, without it getting in your way.
 ⟦CORTEX⟧ commit ▸ L2 2026-11-01_a1b2c3d4-auth.md (L341-388) + L1 engineering/auth.md · ledger live → 388
 ```
 
-**On demand**, `/cortex status` prints a dashboard: the L0 budget, what memory says is current (`now`), your open threads (`next`), ledger totals and anything needing `attention`:
+**On demand**, `/cortex status` prints a dashboard: the L0 budget, how much memory text has actually been pulled into this chat (it measures the size of the tool results, so `Read`, `cat` and `grep` on `memory/` all count, and it resets after compaction), what memory says is current (`now`), your open threads (`next`), ledger totals and anything needing `attention`:
 
 ```
 ◉ CORTEX status  ·  auto  ·  chat a1b2c3d4
 ──────────────────────────────────────────────────────────────────
 activity   ···██··  2 memory writes in 7 days  ·  last 2h ago (engineering/auth.md)
 budget     L0 ███████░░░ 2.1k / 3k tok  ·  12 L1 topics  ·  31 L2 chat logs
+in context L0 2.1k tok always loaded  ·  pulled in this chat: 4 reads, 612 lines, ~2.4k tok  ·  ~7% of this chat's 61.9k context
 now        ▸ Auth moved to short-lived tokens, rollout to staging done
            ▸ Billing webhooks rewritten, retries still flaky
 next       ◦ Add idempotency keys to the webhook handler
