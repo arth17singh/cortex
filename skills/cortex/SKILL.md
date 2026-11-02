@@ -1,9 +1,9 @@
 ---
 name: cortex
-description: "CORTEX: layered, self-maintaining project memory. Subcommands: start (record from now), upgrade (move a project to the current rules), all (backfill untracked past chats), status, save, pause/resume, exclude/include, forget, recall, audit, config, help. Use when the user runs /cortex."
-argument-hint: "help | upgrade | start [--from-chat-start] | all [only <chat>] [since DATE] [last N] [exclude X] [include-skipped] [--yes] | status | save [note] | pause [--project] | resume [--project] | exclude <chat> | include <chat> | forget <topic> | recall <question> | audit | config [key=value]"
+description: "CORTEX: layered, self-maintaining project memory. Subcommands: start (record from now), upgrade (move a project to the current rules), all (backfill untracked past chats), status, save, pause/resume, exclude/include, forget, recall, audit, selftest, config, help. Use when the user runs /cortex."
+argument-hint: "help | upgrade | start [--from-chat-start] | all [only <chat>] [since DATE] [last N] [exclude X] [include-skipped] [--yes] | status | save [note] | pause [--project] | resume [--project] | exclude <chat> | include <chat> | forget <topic> | recall <question> | audit | selftest | config [key=value]"
 disable-model-invocation: true
-allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/ledger_scan.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/extract_transcript.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_status.py *)
+allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/ledger_scan.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/extract_transcript.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_status.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/selftest.py *)
 ---
 
 # CORTEX (v5)
@@ -112,6 +112,9 @@ The ledger is unchanged.
 ### audit
 Run the audit in `PROTOCOL.md` plus `build.md` Step 8 (cold-start test only if asked). Report findings, propose fixes, and apply them on OK.
 
+### selftest
+Run the self-test now, regardless of when the last one ran: follow `${CLAUDE_SKILL_DIR}/reference/selftest.md` with `selftest.py --all`. It also runs on its own: the SessionStart hook asks for one after 5 changed session logs, at most once a day.
+
 ### config [key=value …]
 - `recording=auto|manual`: updates the index line.
 - `commit=no|yes`: `.gitignore` handling, with a warning on yes.
@@ -119,6 +122,7 @@ Run the audit in `PROTOCOL.md` plus `build.md` Step 8 (cold-start test only if a
 - `exclude-default=<list>`
 - `logs=on|off`: the live telemetry (the hook's panel and Claude's `⟦CORTEX⟧` lines); updates a `Logs:` marker in the index.
 - `rules=import|inline`: `inline` copies `RULES.md` into the `CLAUDE.md` block (for tools that don't follow `@` imports); `import` restores the stub.
+- `selftest=on|off`: the automatic self-test; updates a `Selftest:` marker in the index (`/cortex selftest` still works when off).
 - `hooks=install|remove`: shows the settings change and asks first.
 
 With no arguments, show the current values. Mention that `cleanupPeriodDays` in `~/.claude/settings.json` controls how long Claude Code keeps transcripts, which limits how far back `/cortex all` can reach.

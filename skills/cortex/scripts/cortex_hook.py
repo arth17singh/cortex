@@ -102,6 +102,8 @@ WHERE_MAX_AGE = 14     # days before a dated "Where we are" bullet should move d
 MAX_LOG_LINES = 10     # session logs listed in the index map; older lines move to sessions/README.md
 MAX_FOLDER_FILES = 6   # topic files listed per folder; beyond this the folder gets its own _index.md
 MAX_PREF_LINES = 40    # one-line preferences
+SELFTEST_EVERY = 5     # session logs created or changed since the last self-test before the next one is due
+SELFTEST_GAP = 86400   # seconds: at most one self-test (and one reminder) a day
 MAPS = ('_index.md', 'README.md')  # routing files, not topic files or session logs
 
 
@@ -197,6 +199,37 @@ def consolidation_reasons(root, mem_tok):
     if mem_tok > MEMORY_BUDGET:
         why.append(f"memory L0 is {mem_tok:,} tokens (ceiling {MEMORY_BUDGET:,})")
     return why
+
+
+def last_selftest(root):
+    """(epoch of the last recorded self-test or 0, its line) from memory/log/selftest.md."""
+    f = root / 'memory' / 'log' / 'selftest.md'
+    if not f.is_file():
+        return 0.0, ''
+    for line in reversed(f.read_text(encoding='utf-8', errors='replace').splitlines()):
+        m = re.match(r'^- (\d{4}-\d{2}-\d{2} \d{2}:\d{2})', line)
+        if m:
+            try:
+                return time.mktime(time.strptime(m.group(1), '%Y-%m-%d %H:%M')), line[2:]
+            except ValueError:
+                pass
+    return 0.0, ''
+
+
+def selftest_due(root):
+    """Number of session logs changed since the last self-test if one is due now, else 0.
+
+    Off with `Selftest: off` in the index; never while recording is paused; at most once a day.
+    """
+    idx = (root / 'memory' / 'INDEX.md').read_text(encoding='utf-8', errors='replace')
+    if re.search(r'\bselftest:\s*off\b', idx, re.I) or recording_mode(root).lower().startswith('paused'):
+        return 0
+    last, _ = last_selftest(root)
+    if time.time() - last < SELFTEST_GAP:
+        return 0
+    changed = [f for f in (root / 'memory' / 'sessions').glob('*.md')
+               if f.name not in MAPS and f.stat().st_mtime > last]
+    return len(changed) if len(changed) >= SELFTEST_EVERY else 0
 
 
 def stale_where(root, days=WHERE_MAX_AGE):
@@ -403,7 +436,7 @@ def session_start(data, root):
         pass
     if data.get('source') == 'compact':
         lines.append("After compaction: keep appending to this chat's existing session log (listed in its ledger row).")
-    budget_note = ''
+    budget_note = selftest_note = ''
     try:
         _, mem_tok, rules_state = l0_parts(root)
         if rules_state == 'broken':
@@ -416,6 +449,14 @@ def session_start(data, root):
                 lines.append("Consolidate memory before other work (\"Consolidation\" in memory/PROTOCOL.md): "
                              + '; '.join(reasons) + '.')
                 budget_note = f"⚠ memory needs consolidating ({reasons[0]})"
+            n_changed = selftest_due(root)
+            reminded = STATE_DIR / ('selftest-' + re.sub(r'[^A-Za-z0-9]', '-', str(root))[-80:] + '.json')
+            if n_changed and time.time() - read_state(reminded, {}).get('at', 0) > SELFTEST_GAP:
+                write_state(reminded, {'at': time.time()})
+                lines.append(f"CORTEX self-test due ({n_changed} session logs changed since the last one). Start it now "
+                             f"as a background agent, following {HERE.parent / 'reference' / 'selftest.md'}, then carry on "
+                             f"with the user's request; grade and repair when it reports back.")
+                selftest_note = f"\u25cc self-test due ({n_changed} new session logs)"
     except Exception:
         pass
     context = ' '.join(lines)
@@ -436,6 +477,8 @@ def session_start(data, root):
         parts.append(f"⚠ {len(gaps)} unlogged tail{'s' * (len(gaps) != 1)}, recovering")
     if budget_note:
         parts.append(budget_note)
+    if selftest_note:
+        parts.append(selftest_note)
     if data.get('source') == 'compact':
         parts.append('resumed after compaction')
     msg = '  ·  '.join(parts) + '  ·  /cortex status'

@@ -40,6 +40,32 @@ def routing_quality(root):
     return missing, (100 * tagged // bullets if bullets else 0), ranged, len(logs)
 
 
+def learning(root):
+    """One status line on how memory is improving itself, or None for a project with no history yet."""
+    mem = root / 'memory'
+    hist = mem / 'log' / 'selftest.md'
+    scores = re.findall(r'^- (\d{4}-\d{2}-\d{2}) [\d:]+ \u00b7 (\d+)/(\d+)', hist.read_text(encoding='utf-8', errors='replace'), re.M) \
+        if hist.is_file() else []
+    misses = sum(len(re.findall(r'recall miss:', f.read_text(encoding='utf-8', errors='replace'), re.I))
+                 for f in (mem / 'log').glob('*.md')) if (mem / 'log').is_dir() else 0
+    last, _ = h.last_selftest(root)
+    changed = len([f for f in (mem / 'sessions').glob('*.md') if f.name not in h.MAPS and f.stat().st_mtime > last])
+    parts = []
+    if scores:
+        trend = ' \u2192 '.join(f"{p}/{a}" for _, p, a in scores[-3:])
+        parts.append(f"self-test {trend} (last {scores[-1][0]})")
+    if re.search(r'\bselftest:\s*off\b', (mem / 'INDEX.md').read_text(encoding='utf-8', errors='replace'), re.I):
+        parts.append('automatic self-test off')
+    elif changed >= h.SELFTEST_EVERY and time.time() - last >= h.SELFTEST_GAP:
+        parts.append(f"self-test due ({changed} logs changed)")
+    elif changed >= h.SELFTEST_EVERY:
+        parts.append('next self-test tomorrow (at most one a day)')
+    else:
+        parts.append(f"next self-test after {max(0, h.SELFTEST_EVERY - changed)} more changed log{'s' * (h.SELFTEST_EVERY - changed != 1)}")
+    parts.append(f"{misses} correction{'s' * (misses != 1)} learned")
+    return '  \u00b7  '.join(parts)
+
+
 def touches_memory(name, inp, mem):
     """Does this tool call read from the memory folder? (Read, Grep/Glob, or a shell command naming it.)"""
     if name == 'Bash':
@@ -158,6 +184,9 @@ def main():
     missing, sourced, ranged, nlogs = routing_quality(root)
     print(f"routing    map names {l1 - len(missing)}/{l1} topic files  ·  {sourced}% of L1 facts sourced"
           f"  ·  {ranged}/{nlogs} logs line-ranged")
+
+    if rules_state in ('current', 'differs'):
+        print(f"learning   {learning(root)}")
 
     reads = context_reads(root, sid)
     if reads:

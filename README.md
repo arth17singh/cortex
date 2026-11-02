@@ -12,7 +12,7 @@ It's a single skill: markdown, three stdlib-only Python scripts and two hooks. I
 
 ## 🧬 Architecture
 
-CORTEX is built around five ideas.
+CORTEX is built around six ideas.
 
 ### 1. Tiered memory, bounded by construction
 Memory is a hierarchy, and each tier has a defined job, a size cap and a retrieval rule:
@@ -28,7 +28,7 @@ Retrieval goes top-down. Claude starts at the map, follows it to the right L1 fi
 
 **The map is deliberately detailed.** It is how Claude notices that memory covers a topic at all, so every topic file is listed with its distinctive nouns and the situations that should load it, and every recent session log with its topics, decisions and rejected options. Detail beats brevity here, so L0 is kept in check by structure rather than by trimming:
 
-- **The rules** (`memory/RULES.md`, ~1.7k tokens) are a fixed cost. They ship with the skill, are copied byte-for-byte into each project (no approval dialog, no path dependency), and `/cortex upgrade` refreshes them, project by project.
+- **The rules** (`memory/RULES.md`, ~1.8k tokens) are a fixed cost. They ship with the skill, are copied byte-for-byte into each project (no approval dialog, no path dependency), and `/cortex upgrade` refreshes them, project by project.
 - **The memory part** has caps: ≤8 dated "Where we are" bullets, ≤10 session logs on the map (older ones move to `sessions/README.md`), ≤6 files per folder (larger folders get their own `_index.md`), ≤40 preference lines. Full to every cap it measures about 3,000 tokens, so it can never grow past that.
 - **Consolidation** runs when a cap is crossed: it moves detail one level down, leaves a pointer, backs up first, and never deletes. Open items and "never/always" preferences never move.
 
@@ -54,7 +54,16 @@ A crashed, closed or abandoned chat therefore leaves a recoverable trace instead
 - **Consent:** anything that reads many chats, deletes memory or changes git, hooks or settings is shown to you first and waits for your OK.
 - **Control:** pause per chat or per project, exclude a chat for good, or `forget` a topic. Forgetting purges every match and records the label, never the content, so the topic is not re-learned.
 
-### 5. Live status
+### 5. Memory that improves itself
+CORTEX doesn't wait for you to maintain it. It learns from three signals, with no command needed:
+
+- **Your corrections.** When you tell Claude "we already decided that" or "no, it's X", that is a recall miss. Claude fixes the fact, then fixes *why* memory missed it: a fact never stored gets stored, a fact the map couldn't reach gets its words added to the map. It costs nothing extra, because it happens in the turn where you corrected it.
+- **Its own struggles.** If answering took more than 4 memory files, the map was missing something, so Claude adds the missing words. A rejected option found only in an old session log is copied into its topic file, so it's never proposed again.
+- **An automatic self-test.** After 5 session logs have changed (at most once a day), the hook asks for a self-test. Claude picks recent decisions and rejected options and turns them into questions. A fresh background agent answers them with nothing but memory, and every miss is repaired at its cause. You see one line: `⟦CORTEX⟧ selftest ▸ 8/9 recalled · fixed 1 (map)`.
+
+Learning only ever edits memory, never the rules, so every project keeps the same behaviour. `/cortex status` shows the self-test trend and how many corrections memory has learned from. `/cortex config selftest=off` stops the automatic test, and `/cortex selftest` runs one on demand.
+
+### 6. Live status
 You can see CORTEX working, without it getting in your way.
 
 **At the start of every chat**, one line from the `SessionStart` hook. The bars are a 7-day sparkline of memory writes, so you can see at a glance whether memory is being kept up to date:
@@ -82,8 +91,9 @@ You can see CORTEX working, without it getting in your way.
 ◉ CORTEX status  ·  auto  ·  chat a1b2c3d4
 ──────────────────────────────────────────────────────────────────
 activity   ···██··  2 memory writes in 7 days  ·  last 2h ago (engineering/auth.md)
-budget     memory ██████░░░░ 1.8k / 3k tok  ·  rules 1.7k tok (current)
+budget     memory ██████░░░░ 1.8k / 3k tok  ·  rules 1.8k tok (current)
 routing    map names 12/12 topic files  ·  64% of L1 facts sourced  ·  9/10 logs line-ranged
+learning   self-test 7/9 → 8/9 → 9/9 (last 2026-11-02)  ·  next self-test after 3 more changed logs  ·  4 corrections learned
 in context 3.5k tok always loaded  ·  pulled in this chat: 4 reads, 612 lines, ~2.4k tok  ·  ~7% of this chat's 61.9k context
 now        ▸ Auth moved to short-lived tokens, rollout to staging done
            ▸ Billing webhooks rewritten, retries still flaky
@@ -198,7 +208,8 @@ Nothing is installed or changed until you approve it.
 | `/cortex forget <topic>` | Finds every mention, shows exact deletions, and keeps the topic from coming back |
 | `/cortex recall <question>` | Answers from memory with citations and a confidence level |
 | `/cortex audit` | Checks that memory is consistent, not duplicated and within its size caps |
-| `/cortex config [key=value]` | Sets `recording`, `commit`, `timezone`, `exclude-default`, `logs`, `rules` or `hooks` |
+| `/cortex selftest` | Quizzes memory on recent decisions and rejections with a fresh agent, and repairs every miss |
+| `/cortex config [key=value]` | Sets `recording`, `commit`, `timezone`, `exclude-default`, `logs`, `rules`, `selftest` or `hooks` |
 
 ---
 
@@ -219,6 +230,7 @@ cortex/
     └── scripts/
         ├── ledger_scan.py          coverage scanner and transcript search
         ├── cortex_status.py        the /cortex status dashboard
+        ├── selftest.py             picks recent decisions and rejections to quiz memory on
         ├── extract_transcript.py   readable, redacted transcript extraction
         └── cortex_hook.py          SessionStart / Stop hook
 ```

@@ -49,6 +49,8 @@ Read on demand: when creating files, restructuring memory, consolidating, or run
 | Status, open issues, next steps | index "Where we are" (≤8 dated one-line bullets) | the detail stays in L1 |
 | Routing: what each file holds, which log covers what | the index map, `sessions/README.md`, folder `_index.md` files | nothing else |
 | Rejected alternatives | session log (why, in full) + a `Rejected:` bullet in the owning L1 file | — |
+| Self-test history | `log/selftest.md` (one line per run: date, score, what was fixed) | — |
+| Recall misses learned from corrections | changelog lines starting `recall miss:` | — |
 | Procedure | `RULES.md` (from the skill) | never restated |
 | Templates, caps, audit, config | this file and `_templates/` | linked |
 | Coverage per chat | `LEDGER.md` | nothing else states line numbers as truth |
@@ -109,6 +111,7 @@ Moves detail one level down. Guarantees:
 6. Auto-memory holds only the one-line pointer, and hooks are installed (`/cortex status`).
 7. `RULES.md` is identical to the skill's `reference/rules.md` (`/cortex status` checks it); if not, `/cortex upgrade`.
 8. Routing quality: every L1 file has its distinctive nouns in the map; new L1 bullets carry source tags and new session-log headings carry `(L<a>-<b>)` (status counts the gaps). Fix forward; don't rewrite history.
+9. Run `/cortex selftest`; every miss it repairs is a routing or storage gap closed.
 
 ===== 2. memory/_templates/session.md
 # Chat <id8>: <topic>

@@ -47,6 +47,14 @@ Memory lives in `memory/`. `<skill>` is the skill path in the CORTEX heading of 
 - Never store secrets, keys, tokens, passwords, or anyone's email or phone number (`[redacted]`).
 - Never use Claude's auto-memory for project facts.
 
+## Learning (memory improves itself)
+- **When the user corrects you,** or says something memory should have known ("we already decided…", "no, it's…"), that is a recall miss. In the same turn (if recording is paused, write nothing: tell the user memory has it wrong and suggest `/cortex save <the fact>`):
+  1. Fix the fact in its owning L1 file, with a source tag.
+  2. Find why memory missed it, and fix that too: never stored → store it; stored but not reachable from the map → add its nouns to the map; stored in the wrong file → move it.
+  3. Add a changelog line `recall miss: <topic> · fixed <what>`.
+- **Self-test:** when the `CORTEX:` line says a self-test is due, run it as it says (`<skill>/reference/selftest.md`) without waiting to be asked.
+- Learning edits memory only, never this file.
+
 ## Checkpoint (before pause, clear, switching chats, long work, or `/cortex save`)
 1. Session log up to date: exchanges, decisions, rejected alternatives, open threads.
 2. Ledger live end = current `wc -l` (skip if paused).
@@ -58,4 +66,4 @@ Memory lives in `memory/`. `<skill>` is the skill path in the CORTEX heading of 
 When the hook or `/cortex status` lists a consolidation reason (a map, log or preference cap exceeded, an old "Where we are" bullet, or memory over its ceiling), run "Consolidation" in `PROTOCOL.md` before other work. It moves detail one level down and leaves a pointer; it never deletes.
 
 ## Telemetry
-Unless the index says `Logs: off`, print one line after each memory action: `⟦CORTEX⟧ <recall|commit|recover|checkpoint> ▸ <files and line ranges> · <ledger or trust>`. Log only what you actually did.
+Unless the index says `Logs: off`, print one line after each memory action: `⟦CORTEX⟧ <recall|commit|recover|checkpoint|learn|selftest> ▸ <files and line ranges> · <ledger or trust>`. Log only what you actually did.
