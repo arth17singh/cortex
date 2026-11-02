@@ -15,7 +15,7 @@ Memory lives in `memory/`. `<skill>` is the skill path in the CORTEX heading of 
 ## Reading
 - **Check before acting.** Before editing code, stating a fact about the project, or recommending an option, read the L1 file the map routes it to, and grep the session logs for earlier rejections (`grep -n -i -E 'rejected|<term>' memory/sessions/*.md`). Never re-propose a rejected option without saying it was rejected, and why.
 - **Pick files** from the map: the 1–3 L1 files whose nouns or triggers fit. Check the `Summary:` line (`head -4`) before reading a whole file. L1 files are read whole.
-- **Session logs and the changelog are never read whole:** `grep -n -i '<term>' memory/sessions/*.md memory/log/*.md`, then read about ±25 lines around the hits. The map's session-log lines say which log covers what.
+- **Session logs and the changelog are never read whole:** `grep -n -i '<term>' memory/sessions/*.md memory/log/*.md`, then read about ±25 lines around the hits. The map says which log covers what: the newest logs have their own line; older ones are in week and month lines (follow them to `sessions/README.md` for the per-log line), and big folders in a summary line (follow it to that folder's `_index.md`).
 - **Which layer answers what:**
   - "What's true now, how do I run it" → L1.
   - "Why, who said what, exact wording, what was rejected" → session log.
@@ -63,7 +63,7 @@ Memory lives in `memory/`. `<skill>` is the skill path in the CORTEX heading of 
 5. Tell the user.
 
 ## Budget
-When the hook or `/cortex status` lists a consolidation reason (a map, log or preference cap exceeded, an old "Where we are" bullet, or memory over its ceiling), run "Consolidation" in `PROTOCOL.md` before other work. It moves detail one level down and leaves a pointer; it never deletes.
+When the hook or `/cortex status` lists a consolidation reason (a map, rollup or preference cap exceeded, an old "Where we are" bullet, or memory over its ceiling), run "Consolidation" in `PROTOCOL.md` before other work. It moves detail one level down and leaves a pointer; it never deletes.
 
 ## Telemetry
 Unless the index says `Logs: off`, print one line after each memory action: `⟦CORTEX⟧ <recall|commit|recover|checkpoint|learn|selftest> ▸ <files and line ranges> · <ledger or trust>`. Log only what you actually did.

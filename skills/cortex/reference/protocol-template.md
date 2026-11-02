@@ -61,9 +61,14 @@ Read on demand: when creating files, restructuring memory, consolidating, or run
 - L1 files under ~150 lines. Split oversized ones into a subfolder, update the index, and leave a one-line pointer.
 - Session-log parts under ~300 lines; start `-pN+1` past that.
 - `team/user-preferences.md` under ~40 lines.
-- **Memory L0 is bounded by these caps:** ≤8 "Where we are" bullets, ≤10 session logs in the map, ≤6 files listed per folder, ≤40 preference lines. Filled to every cap it measures about 3,000 tokens (≈ 12,000 characters), which is the ceiling `/cortex status` checks as a backstop. The rules are a fixed cost, budgeted separately.
-- The index map lists the ~10 newest session logs; older lines move, unchanged, to `sessions/README.md`, which the index links to.
-- A topic folder with more than ~6 files gets `<folder>/_index.md` (same line format); the index then keeps one line for the folder.
+- **Memory L0 is hierarchical, so it scales with activity without forgetting.** History stays visible at decreasing resolution instead of falling off the map:
+  - **Session logs:** the newest 15 have their own line; older ones are covered by at most 4 **week** lines, then at most 6 **month** lines, then one **quarter** line per quarter. `sessions/README.md` holds the per-log line of every log, newest first, unchanged.
+  - **Rollup lines are an index, not a summary:** a week line stays under ~600 characters, and a month or quarter line under ~900, however many logs they cover, because the full detail is one hop away in `sessions/README.md`. Fill them in this order until the line is full: (1) every rejected option, as a short noun; (2) decisions with a specific reason (a number, product, vendor or person), as a short phrase; (3) topics that appear only in this period. Leave out stock reasons, generic verbs and anything most lines share.
+  - **When a busy period has more rejected options than fit:** keep the ones that appear in no other rollup line; the rest stay findable in `sessions/README.md`. Name what a reason measured rather than its value (numbers live in one L1 file or log).
+  - **Ordering:** "newest 15" follows `sessions/README.md` order (date, then file name, newest first). Week lines are the 4 most recent ISO weeks that have logs outside the newest 15. A month label may add its day span when partial, e.g. `month 2026-10 (32 logs, Oct 1–4)`.
+  - **Topic files:** a folder lists up to 10 files individually; a bigger folder becomes one **folder summary** line with its ~25 most distinctive nouns, and its per-file lines move to `<folder>/_index.md`. With more than 12 folders, group related folders under one area line the same way.
+  - ≤8 "Where we are" bullets; ≤40 preference lines.
+  - Backstop ceiling: 7,000 tokens for `INDEX.md` + preferences, only to catch runaway lines; the caps above trigger first. The rules are a fixed cost, budgeted separately.
 - Changelog over ~150 lines: move all but the newest ~60 entries to `log/changelog-archive-YYYY.md`.
 
 ## Index template
@@ -76,23 +81,28 @@ Last updated: YYYY-MM-DD · Recording: <auto | manual | paused (was …) since �
 ## Map: topic files (L1)
 <one line per folder. Per file: its name, then the nouns it holds, then "for" and the situations that should load it. Keep every distinctive noun: this is how Claude notices that memory covers a topic.>
 - `<folder>/` <file>: <noun>, <noun>, <noun>; for <trigger>, <trigger> · <file>: …
-- `<big-folder>/` <one-line scope> → `<big-folder>/_index.md`
+- `<big-folder>/` (<n> files → `<big-folder>/_index.md`): <~25 most distinctive nouns across its files, rare ones first>
 
-## Map: session logs (L2, newest ~10; older in `sessions/README.md`)
-- `<YYYY-MM-DD>_<id8>-<topic>.md`: <topics; decisions; rejected options, as nouns>
+## Map: session logs (L2; per-log lines for every log in `sessions/README.md`)
+- `<YYYY-MM-DD>_<id8>-<topic>.md`: <topics; decisions; rejected options, as nouns>   (newest 15)
+- week <YYYY>-W<ww> (<n> logs): <rejected options; decisions with specific reasons; distinctive topics>   (≤4, newest first)
+- month <YYYY-MM> (<n> logs): <rejected options; decisions with specific reasons; distinctive topics>   (≤6)
+- quarter <YYYY>-Q<q> (<n> logs): <same, for the whole quarter>   (older)
 
 Other sources: <repo docs, artifacts>. Rules `RULES.md` · coverage `LEDGER.md` · config, caps, consolidation `PROTOCOL.md` · templates `_templates/`.
 
-## Consolidation (when a cap above is exceeded, a "Where we are" bullet is older than 14 days, or memory L0 passes its ~3,000-token ceiling; the hook and `/cortex status` list the reasons)
+## Consolidation (when a cap above is exceeded, a "Where we are" bullet is older than 14 days, or memory L0 passes its 7,000-token ceiling; the hook and `/cortex status` list the reasons)
 Moves detail one level down. Guarantees:
 1. **Back up first:** copy `INDEX.md` and `team/user-preferences.md` to `memory/.backups/<YYYY-MM-DD-HHMM>/`.
 2. **Never delete, only move:** copy the text to its target, `grep` that it is there, then remove it from L0, all in the same turn. Every move leaves a pointer or a map entry.
 3. **What moves, in order:**
-   - session-log lines beyond the newest ~10 → `sessions/README.md`;
-   - a folder's file entries, once the folder has more than ~6 files → `<folder>/_index.md`;
+   - session-log lines beyond the newest 15 → `sessions/README.md` (unchanged), and into that week's **week** line; week lines beyond 4 → merged into their **month** line; month lines beyond 6 → merged into their **quarter** line. Write rollups within their size limit and priority order ("Caps and rollovers"); a week spanning two months is split between them;
+   - a folder's file entries, once the folder has more than 10 files → `<folder>/_index.md` (unchanged), replaced in the index by its folder summary line. Pick the summary's nouns from all its files, rare and specific ones first (product names, services, numbers' subjects), since common words are found anyway;
+   - logs listed only in `sessions/README.md` with no week or month line covering them (e.g. after an upgrade) → write the missing month lines (week lines for the last 4 weeks) from their per-log lines;
+   - a bare folder pointer (`→ _index.md` with no nouns) → its folder summary line, or, if the folder has 10 files or fewer, its files listed one by one again;
    - "Where we are" bullets older than 14 days → the body of their owning L1 file (never its `Summary:` line);
    - preferences that apply to one area only → that area's L1 file, with a one-line pointer left in the preferences.
-4. **What never moves:** bullets marked "open:", pending decisions and next steps (they move to the owning file's open-threads section only once resolved); "never" and "always" preferences; the map's nouns.
+4. **What never moves:** bullets marked "open:", pending decisions and next steps (they move to the owning file's open-threads section only once resolved); "never" and "always" preferences. **No noun leaves the maps:** every noun removed from the index must still appear in `sessions/README.md` or a `_index.md` (rollup and folder lines choose among them; they don't have to repeat them all). Every folder keeps its `_index.md`, even when the index lists its files one by one.
 5. **Re-verify on the way:** a fast-changing fact being moved (status, "untested", "no commits") is checked against the code, or marked "not yet verified".
 6. **Log it:** one changelog line per move (`moved <what> from <L0 section> to <file>`), then report the before/after size.
 

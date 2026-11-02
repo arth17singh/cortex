@@ -16,6 +16,7 @@ and at Stop a 'synced' pulse (what changed in memory this turn, from file snapsh
 It is silent and exits 0 whenever the project has no CORTEX memory or anything goes wrong.
 """
 import json, os, re, subprocess, sys, tempfile, time
+from datetime import date
 from pathlib import Path
 
 NUDGE_EVERY = 150      # transcript lines between nudges
@@ -96,11 +97,13 @@ def logs_enabled(root):
     return True
 
 
-MEMORY_BUDGET = 3000   # tokens: INDEX.md + preferences, a backstop only. It is the measured size with every
-                       # structural cap below full (real projects' average line lengths); the caps trigger first.
+MEMORY_BUDGET = 7000   # tokens: INDEX.md + preferences, a backstop for runaway lines only; the caps trigger first
 WHERE_MAX_AGE = 14     # days before a dated "Where we are" bullet should move down to its L1 file
-MAX_LOG_LINES = 10     # session logs listed in the index map; older lines move to sessions/README.md
-MAX_FOLDER_FILES = 6   # topic files listed per folder; beyond this the folder gets its own _index.md
+MAX_LOG_LINES = 15     # session logs with their own line in the map; older ones roll up into week/month lines
+MAX_WEEK_LINES = 4     # week rollup lines; older weeks merge into month lines
+MAX_MONTH_LINES = 6    # month rollup lines; older months merge into quarter lines
+MAX_FOLDER_FILES = 10  # topic files listed one by one per folder; beyond this, a folder summary + _index.md
+MAX_FOLDERS = 12       # folder lines in the topic map; beyond this, group related folders under area lines
 MAX_PREF_LINES = 40    # one-line preferences
 SELFTEST_EVERY = 5     # session logs created or changed since the last self-test before the next one is due
 SELFTEST_GAP = 86400   # seconds: at most one self-test (and one reminder) a day
@@ -179,15 +182,37 @@ def consolidation_reasons(root, mem_tok):
     mem, why = root / 'memory', []
     idx = (mem / 'INDEX.md').read_text(encoding='utf-8', errors='replace')
     m = re.search(r'^## Map: session logs.*?$(.*?)(?=^## |\Z)', idx, re.M | re.S)
-    logs = len(re.findall(r'^- ', m.group(1), re.M)) if m else 0
+    body = m.group(1) if m else ''
+    logs = len(re.findall(r'^- `', body, re.M))       # one line per log
+    weeks = len(re.findall(r'^- week ', body, re.M))   # rollups; quarter lines are uncapped (one per quarter)
+    months = len(re.findall(r'^- month ', body, re.M))
     if logs > MAX_LOG_LINES:
-        why.append(f"{logs} session logs listed in the map (cap {MAX_LOG_LINES})")
+        why.append(f"{logs} session logs with their own map line (cap {MAX_LOG_LINES}; roll older ones into week lines)")
+    if weeks > MAX_WEEK_LINES:
+        why.append(f"{weeks} week lines in the map (cap {MAX_WEEK_LINES}; merge older weeks into month lines)")
+    if months > MAX_MONTH_LINES:
+        why.append(f"{months} month lines in the map (cap {MAX_MONTH_LINES}; merge older months into quarter lines)")
+    uncovered = uncovered_months(mem, body)
+    if uncovered:
+        why.append(f"older session logs from {', '.join(uncovered[:4])}{'…' if len(uncovered) > 4 else ''} "
+                   f"have no week or month line in the map")
+    t = re.search(r'^## Map: topic files.*?$(.*?)(?=^## |\Z)', idx, re.M | re.S)
+    folder_lines = re.findall(r'^- `([^`]+)/`(.*)$', t.group(1), re.M) if t else []
+    folders = len(folder_lines)
+    # a bare pointer names _index.md but carries (almost) no nouns after its colon
+    bare = [name for name, rest in folder_lines if '_index.md' in rest and rest.partition(':')[2].count(',') < 3]
+    if bare:
+        why.append(f"folder line{'s' * (len(bare) != 1)} without a noun summary: {', '.join(bare[:4])}"
+                   f"{'…' if len(bare) > 4 else ''}")
+    if folders > MAX_FOLDERS:
+        why.append(f"{folders} folder lines in the topic map (cap {MAX_FOLDERS}; group related folders under area lines)")
     skip = {'sessions', 'log', '_templates', 'team'}
     for d in sorted(mem.iterdir()):
         if d.is_dir() and d.name not in skip and not d.name.startswith('.') and not (d / '_index.md').is_file():
             n = len([f for f in d.glob('*.md') if f.name not in MAPS])
             if n > MAX_FOLDER_FILES:
-                why.append(f"{d.name}/ has {n} topic files listed (cap {MAX_FOLDER_FILES}; give it an _index.md)")
+                why.append(f"{d.name}/ has {n} topic files listed one by one (cap {MAX_FOLDER_FILES}; "
+                           f"give it a folder summary line and an _index.md)")
     old = stale_where(root)
     if old:
         why.append(f"{len(old)} \"Where we are\" bullet{'s' * (len(old) != 1)} older than {WHERE_MAX_AGE} days")
@@ -230,6 +255,25 @@ def selftest_due(root):
     changed = [f for f in (root / 'memory' / 'sessions').glob('*.md')
                if f.name not in MAPS and f.stat().st_mtime > last]
     return len(changed) if len(changed) >= SELFTEST_EVERY else 0
+
+
+def uncovered_months(mem, log_map):
+    """Months of logs listed only in sessions/README.md that no map line (log, week or month) covers."""
+    readme = mem / 'sessions' / 'README.md'
+    if not readme.is_file():
+        return []
+    listed = set(re.findall(r'(\d{4}-\d{2})-\d{2}_', readme.read_text(encoding='utf-8', errors='replace')))
+    covered = set(re.findall(r'^- month (\d{4}-\d{2})', log_map, re.M))
+    for y, q in re.findall(r'^- quarter (\d{4})-Q([1-4])', log_map, re.M):
+        covered |= {f'{y}-{m:02d}' for m in range(3 * int(q) - 2, 3 * int(q) + 1)}
+    covered |= set(re.findall(r'^- `(\d{4}-\d{2})-\d{2}_', log_map, re.M))
+    for y, w in re.findall(r'^- week (\d{4})-W(\d{2})', log_map, re.M):
+        for day in (1, 7):  # a week can span two months
+            try:
+                covered.add(date.fromisocalendar(int(y), int(w), day).strftime('%Y-%m'))
+            except ValueError:
+                pass
+    return sorted(listed - covered)
 
 
 def stale_where(root, days=WHERE_MAX_AGE):

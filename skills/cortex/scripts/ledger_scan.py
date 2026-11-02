@@ -13,7 +13,7 @@ in the last 15 minutes and has a live range is flagged `active` (another open ch
 tail. --grep searches only non-excluded chats, outside skipped/paused ranges (for `recall`).
 Excluded chats are never read beyond their line count and timestamps.
 """
-import json, os, re, sys, time
+import json, os, re, sys, tempfile, time
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -110,6 +110,21 @@ def meta(p, want_preview):
                 if t: preview = red(t)[:80]
     return n, first, last, preview
 
+# Per-transcript meta() cache: an active project has hundreds of chats, and re-reading all of them at
+# every SessionStart would outgrow the hook's timeout. Only transcripts whose size or mtime changed are re-read.
+CACHE = Path(tempfile.gettempdir()) / 'cortex-scan' / (re.sub(r'[^A-Za-z0-9]', '-', str(tdir))[-120:] + '.json')
+try: cache = json.loads(CACHE.read_text())
+except (OSError, ValueError): cache = {}
+def meta_cached(p, want_preview):
+    st = p.stat(); key = [st.st_size, st.st_mtime]; c = cache.get(p.stem)
+    if isinstance(c, list) and len(c) == 3 and c[0] == key and (c[2] or not want_preview): return tuple(c[1])
+    m = meta(p, want_preview); cache[p.stem] = [key, list(m), want_preview]; return m
+def save_cache():
+    try:
+        CACHE.parent.mkdir(exist_ok=True); tmp = CACHE.with_suffix(f'.{os.getpid()}.tmp')
+        tmp.write_text(json.dumps(cache)); os.replace(tmp, CACHE)
+    except OSError: pass
+
 def covered_set(entry, n, include_skipped):
     if entry['excluded']: return set(range(1, n + 1))
     cov = set()
@@ -132,7 +147,7 @@ if tdir.is_dir():
         files.append(p)
         cid = p.stem[:8]
         entry = ledger.get(cid, {'state': 'untracked', 'ranges': [], 'raw': '', 'excluded': False})
-        n, first, last, preview = meta(p, '--preview' in flags and not entry['excluded'])
+        n, first, last, preview = meta_cached(p, '--preview' in flags and not entry['excluded'])
         cov = covered_set(entry, n, '--include-skipped' in flags)
         gaps, start = [], None
         for i in range(1, n + 2):
@@ -147,6 +162,7 @@ if tdir.is_dir():
                       'current': is_current, 'active': active,
                       'backfill': [] if (entry['excluded'] or is_current) else
                                   [g for g in gaps if not (active and g[1] == n)]})
+    save_cache()
     seen = {p.stem[:8] for p in files}
     for cid in ledger:
         if cid not in seen: warnings.append(f'{cid}: ledger row but no transcript (deleted by cleanupPeriodDays?)')
