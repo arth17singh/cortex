@@ -17,12 +17,12 @@ CORTEX is built around five ideas.
 ### 1. Tiered memory with a token budget
 Memory is a hierarchy, and each tier has a defined job, a size cap and a retrieval rule:
 
-```
-L0  CLAUDE.md block + memory/INDEX.md    always loaded · ~3k-token budget · status, file map, working style
-L1  memory/<topic>/*.md                  current truth · ~150 lines per file · every fact source-tagged
-L2  memory/sessions/*.md                 per-chat history and fine detail · searched by grep, read by window
-L3  raw Claude Code transcripts          ground truth · reached only through the redacting extractor
-```
+| Tier | Where | Role |
+|---|---|---|
+| **L0** | `CLAUDE.md` block + `memory/INDEX.md` | Always loaded. ~3k-token budget: status, a file map, working style |
+| **L1** | `memory/<topic>/*.md` | Current truth. ~150 lines per file, every fact source-tagged |
+| **L2** | `memory/sessions/*.md` | Per-chat history and fine detail. Searched by grep, read by window |
+| **L3** | raw Claude Code transcripts | Ground truth. Reached only through the redacting extractor |
 
 Retrieval goes top-down. Claude starts at the index, follows it to the right L1 file, and descends to L2 and L3 only when a question demands it. L0 stays small enough to load every time, and nothing is lost because the deeper layers keep the detail. `/cortex status` measures L0 against the budget and warns you before it bloats.
 
