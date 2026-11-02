@@ -94,7 +94,8 @@ You can see CORTEX working, without it getting in your way.
 ```
 
 - **The marker shows how much was drawn on,** by sources or lines read, whichever is larger: `◈` a small single recall, `◈◈` ~50–300 lines or 2–3 sources, `◈◈◈` over ~300 lines or 4+ sources.
-- **`~420 lines`** is about how much memory was read for this answer (topic files, session logs, chats; the always-loaded map isn't counted). It's Claude's estimate, hence the `~`.
+- **`~420 lines`** is about how much memory was read for this answer (topic files, session logs, chats). It's Claude's estimate, hence the `~`.
+- **`+ 2 from L0`** counts lines of the always-loaded index whose content went straight into the answer, such as a status bullet. Lines that only pointed the way, and your preferences, aren't counted. Nothing can measure the quieter influence of always-loaded text, so this counts what was used directly.
 - **Layers show how deep it dug:** `L0` is the always-loaded map, `L1` a topic file, `L2` a session log, `L3` a raw chat.
 - **Scope:** a single memory's age, or for a broad recall how many sources and the time span they cover.
 - **The gist:** up to 12 words for one source, 20 for many. The detail is in the answer itself.
