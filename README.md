@@ -97,7 +97,7 @@ You can see CORTEX working, without it getting in your way.
 - **Layers show how deep it dug:** `L0` is the always-loaded map, `L1` a topic file, `L2` a session log, `L3` a raw chat.
 - **Scope:** a single memory's age, or for a broad recall how many sources and the span they cover.
 - **The gist:** up to 12 words for one source, 20 for many. The detail is in the answer itself.
-- **Flags get their own line,** so a warning is never buried: `superseded` (a newer decision replaced an older one), `unverified`, or `stale`.
+- **Flags get their own line,** so a warning is never buried: `superseded` (a newer decision replaced an older one, shown as old → new), `unverified` (no source), or `stale` (a temporary status, like "A/B running", older than 14 days; decisions and facts never go stale by age).
 
 Routine answers, preferences and the rules never get a line, so a recall line means memory earned its keep, and you can spot an outdated memory at a glance.
 
