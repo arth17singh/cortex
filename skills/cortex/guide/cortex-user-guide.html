@@ -162,7 +162,7 @@
     </div></div>
     <div class="card bg-base-200"><div class="card-body p-5">
       <h3 class="font-semibold">It stays bounded, without forgetting</h3>
-      <p class="text-sm muted">The always-loaded part has fixed caps: 8 status bullets, 10 session logs on the map, 6 files per folder, 40 preferences. When one is crossed, Claude moves detail one layer down and leaves a pointer. It backs up first and never deletes, so the start-up cost has a ceiling but nothing is lost.</p>
+      <p class="text-sm muted">The always-loaded map is hierarchical: the newest 15 session logs get their own line, older ones are summed up in week, month and quarter lines, and big folders get a one-line summary of their key nouns. When a limit is crossed, Claude moves detail one layer down and leaves a pointer. It backs up first and never deletes, so the start-up cost levels off even in very busy projects, but nothing is lost.</p>
     </div></div>
     <div class="card bg-base-200"><div class="card-body p-5">
       <h3 class="font-semibold">You stay in control</h3>
@@ -551,12 +551,12 @@
     <div class="collapse collapse-arrow join-item border border-base-300" id="faq-tokens">
       <input type="checkbox">
       <div class="collapse-title font-semibold">Does it cost a lot of tokens?</div>
-      <div class="collapse-content text-sm "><p>Very little. Each chat starts with the rules (about 1.8k tokens, fixed) plus your memory map and preferences (about 1.7k on a busy hackathon project, and capped at about 3k). Each memory update is a small edit, usually 50–300 tokens. Backfilling a large history is a one-time cost: one project's ~25 MB of chats took about 4 helpers and 10 minutes. The automatic self-test costs about one short agent run, at most once a day.</p></div>
+      <div class="collapse-content text-sm "><p>Very little. Each chat starts with the rules (about 1.8k tokens, fixed) plus your memory map and preferences (about 1.7k on a busy hackathon project, about 4.3k on a stress-test project with 720 chats, and a 7k backstop). Each memory update is a small edit, usually 50–300 tokens. Backfilling a large history is a one-time cost: one project's ~25 MB of chats took about 4 helpers and 10 minutes. The automatic self-test costs about one short agent run, at most once a day.</p></div>
     </div>
     <div class="collapse collapse-arrow join-item border border-base-300" id="faq-fill">
       <input type="checkbox">
       <div class="collapse-title font-semibold">Will the always-loaded memory keep growing?</div>
-      <div class="collapse-content text-sm "><p>No. It's bounded by structure, not by trimming. The map stays detailed, because that's how Claude finds old and subtle things, but each part has a cap: 8 status bullets, 10 session logs on the map, 6 files per folder, 40 preferences. When one is crossed, older detail moves one layer down with a pointer left behind: logs to <code>sessions/README.md</code>, a big folder to its own <code>_index.md</code>, old status into its topic file. Filled to every cap it measures about 3k tokens, so that's the ceiling.</p></div>
+      <div class="collapse-content text-sm "><p>No. It's bounded by structure, not by trimming. The map stays detailed, because that's how Claude finds old and subtle things, but history is kept at decreasing resolution. The newest 15 session logs have their own line; older ones are covered by up to 4 week lines, 6 month lines, then quarter lines, each a short index of rejected options, decisions and distinctive topics. Each log's full line stays in <code>sessions/README.md</code>, one hop away. A folder with more than 10 files becomes one summary line of its key nouns, with the details in its <code>_index.md</code>. In a stress test with 720 chats over 90 days this came to about 4.3k tokens and answered 14 of 14 tricky recall questions. A flat layout used about 1k tokens but kept missing a 6-week-old rejected option.</p></div>
     </div>
     <div class="collapse collapse-arrow join-item border border-base-300" id="faq-old">
       <input type="checkbox">
