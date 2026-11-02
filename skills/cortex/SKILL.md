@@ -120,7 +120,7 @@ Run the self-test now, regardless of when the last one ran: follow `${CLAUDE_SKI
 - `commit=no|yes`: `.gitignore` handling, with a warning on yes.
 - `timezone=<IANA>`
 - `exclude-default=<list>`
-- `logs=on|off`: the live telemetry (the hook's panel and Claude's `⟦CORTEX⟧` lines); updates a `Logs:` marker in the index.
+- `logs=on|off`: the hooks' live lines (the status line at start-up and the `⟲ CORTEX synced` line after a turn that changed memory); updates a `Logs:` marker in the index. Claude never reports memory writes in chat either way.
 - `rules=import|inline`: `inline` copies `RULES.md` into the `CLAUDE.md` block (for tools that don't follow `@` imports); `import` restores the stub.
 - `selftest=on|off`: the automatic self-test; updates a `Selftest:` marker in the index (`/cortex selftest` still works when off).
 - `hooks=install|remove`: shows the settings change and asks first.

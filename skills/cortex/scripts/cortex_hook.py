@@ -6,8 +6,8 @@ SessionStart (startup, resume, clear, compact): prints a short CORTEX line into 
   other (non-active) chats that need recovering.
 Stop: if this chat is recording and its ledger `live` end is far behind the transcript, it returns
   a non-blocking nudge (additionalContext) asking Claude to log what's worth keeping and bump the
-  ledger. It never edits the ledger itself: only Claude may mark lines as covered, after it has
-  actually logged them. Nudges are rate-limited per chat.
+  ledger, silently (no reply text: the user sees the synced line). It never edits the ledger itself:
+  only Claude may mark lines as covered, after it has actually logged them. Nudges are rate-limited per chat.
 
 Both events also emit a `systemMessage` the user sees in their terminal: a one-line status at SessionStart,
 and at Stop a 'synced' pulse (what changed in memory this turn, from file snapshots) plus any checkpoint nudge
@@ -486,6 +486,10 @@ def session_start(data, root):
                       'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': context}}))
 
 
+SILENT = ("Do this silently: use only tool calls and write no reply text about it, since the user already "
+          "sees a CORTEX synced line naming what changed. Then stop.")
+
+
 def nudge(root, sid, tp):
     """Return the checkpoint nudge text and its short on-screen form, or (None, None)."""
     mode = recording_mode(root).lower()
@@ -511,11 +515,11 @@ def nudge(root, sid, tp):
         msg = (f"CORTEX: {n - covered_to} transcript lines since this chat's last memory update "
                f"(ledger live end {covered_to}, transcript now {n}). If anything since then passes the storage test, "
                f"append it to this chat's session log (and the matching L1 file), then set the ledger live end to {n}. "
-               f"If nothing does, just set the ledger live end to {n}. Keep it brief, then stop.")
+               f"If nothing does, just set the ledger live end to {n}. {SILENT}")
     else:
         msg = (f"CORTEX: this chat ({sid[:8]}) has no session log or ledger row yet, and recording is {mode}. "
                f"If anything so far passes the storage test, create the session log and the ledger row "
-               f"(live 1-{n}) per the CORTEX rules (Checkpoint). If nothing does, add the row as 'skipped 1-{n}'. Then stop.")
+               f"(live 1-{n}) per the CORTEX rules (Checkpoint). If nothing does, add the row as 'skipped 1-{n}'. {SILENT}")
     short = (f"▸ CORTEX checkpoint due  ·  {n - covered_to} unlogged lines "
              f"(ledger {covered_to} → transcript {n})")
     return msg, short

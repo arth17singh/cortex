@@ -34,7 +34,7 @@ Memory lives in `memory/`. `<skill>` is the skill path in the CORTEX heading of 
 - Drop noise. Work on the memory system itself gets one changelog line, not L1 or narrative.
 
 **After each exchange that passes the test:**
-1. **Session log** `memory/sessions/YYYY-MM-DD_<id8>-<topic>.md`. At the first such exchange: `cp memory/_templates/session.md <path>`, add this chat's ledger row and its line in the map, and tell the user "Session log: `<path>`". Each exchange heading ends with `(L<a>-<b>)`, the transcript lines it covers. Record every decision with its reason and every rejected alternative with why.
+1. **Session log** `memory/sessions/YYYY-MM-DD_<id8>-<topic>.md`. At the first such exchange: `cp memory/_templates/session.md <path>`, add this chat's ledger row and its line in the map. Each exchange heading ends with `(L<a>-<b>)`, the transcript lines it covers. Record every decision with its reason and every rejected alternative with why.
 2. **Ledger, same turn:** set this chat's `live` end to the transcript's current `wc -l` (one edit). Never extend a live range across a pause; never mark lines you didn't log.
 3. **L1, when current truth changes** (a decision, something built, fixed or renamed, a bug or lesson, a preference, a reusable explanation): edit the one L1 file that owns the fact, in place, with a source tag: `(<id8> L<line>)` for a chat, `(code: path:line)` when verified. No tag means unverified. A rejection also gets a bullet there: `Rejected: <option> (<why>) (<id8> L<line>)`.
 4. **Map:** keep `INDEX.md` routing current: new nouns and triggers for the file you changed, and this chat's session-log line. Status and next steps go in "Where we are" (≤8 one-line bullets, each dated `(YYYY-MM-DD)` and linking its L1 file).
@@ -60,10 +60,10 @@ Memory lives in `memory/`. `<skill>` is the skill path in the CORTEX heading of 
 2. Ledger live end = current `wc -l` (skip if paused).
 3. Affected L1 files and the map updated.
 4. Index "Where we are" refreshed.
-5. Tell the user.
+5. Say nothing about it, unless the user ran `/cortex save`; then confirm in one line.
 
 ## Budget
 When the hook or `/cortex status` lists a consolidation reason (a map, log or preference cap exceeded, an old "Where we are" bullet, or memory over its ceiling), run "Consolidation" in `PROTOCOL.md` before other work. It moves detail one level down and leaves a pointer; it never deletes.
 
-## Telemetry
-Unless the index says `Logs: off`, print one line after each memory action: `⟦CORTEX⟧ <recall|commit|recover|checkpoint|learn|selftest> ▸ <files and line ranges> · <ledger or trust>`. Log only what you actually did.
+## Silent memory
+Memory work is silent. Never say in a reply that you read, wrote, logged or checkpointed memory: no "Saved to memory", no "Session log: …", no `⟦CORTEX⟧` lines. The Stop hook already shows the user a `⟲ CORTEX synced` line naming what changed. Still say anything that needs the user's OK, the paused reminder, and the reply to a `/cortex` command the user ran. Citing memory as a source in an answer is fine (see Reading).
