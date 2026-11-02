@@ -163,6 +163,14 @@ To add them by hand, merge [`hooks/settings-snippet.json`](hooks/settings-snippe
 
 **Manual install:** copy `skills/cortex/` to `~/.claude/skills/cortex/`.
 
+### Updating
+
+```bash
+cd cortex && git pull && ./install.sh --no-hooks   # hooks are already registered
+```
+
+Then, in each project that already uses CORTEX, run `/cortex upgrade` once. It shows what will change and backs up first. Projects you don't upgrade keep working on their current rules, so you can upgrade each one when it suits you, for example after a deadline.
+
 ### Verify
 
 Open Claude Code in any project and run:
