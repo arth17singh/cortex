@@ -10,8 +10,7 @@ Stop: if this chat is recording and its ledger `live` end is far behind the tran
   actually logged them. Nudges are rate-limited per chat.
 
 Both events also emit a `systemMessage` the user sees in their terminal: a one-line status at SessionStart,
-and at Stop a 'synced' pulse (what changed in memory this turn, from file snapshots), any checkpoint nudge,
-and a context gauge (how much memory is in this chat's context, from the transcript's Read calls and usage)
+and at Stop a 'synced' pulse (what changed in memory this turn, from file snapshots) plus any checkpoint nudge
 (put `Logs: off` anywhere in memory/INDEX.md, or set CORTEX_QUIET=1, to silence it).
 
 It is silent and exits 0 whenever the project has no CORTEX memory or anything goes wrong.
@@ -228,87 +227,6 @@ def l1_health(root, days=30):
     return stale, unverified
 
 
-def l0_tokens(root):
-    """Tokens CORTEX always puts in context: index + preferences + the CLAUDE.md block (~4 bytes/token)."""
-    mem, size = root / 'memory', 0
-    for f in (mem / 'INDEX.md', mem / 'team' / 'user-preferences.md'):
-        size += f.stat().st_size if f.is_file() else 0
-    claude = root / 'CLAUDE.md'
-    if claude.is_file():
-        m = re.search(r'<!-- CORTEX:BEGIN.*?<!-- CORTEX:END -->', claude.read_text(encoding='utf-8', errors='replace'), re.S)
-        size += len(m.group(0).encode()) if m else 0
-    return size // 4
-
-
-def context_usage(root, sid, tp):
-    """(l0_tok, {rel: tok} for L1/L2 files Claude read this chat, current context tokens or None).
-
-    Reads only what is new in the transcript since the last turn (byte offset cached per chat).
-    Counts Read tool calls on memory files; reads via shell commands are not seen.
-    """
-    sf = STATE_DIR / f'{sid}.ctx.json'
-    st = json.loads(sf.read_text()) if sf.exists() else {}
-    offset, reads, total = st.get('offset', 0), st.get('reads', {}), st.get('total')
-    mem = str(root / 'memory') + os.sep
-    with open(tp, 'rb') as f:
-        f.seek(offset)
-        data = f.read()
-    end = data.rfind(b'\n') + 1
-    for raw in data[:end].splitlines():
-        try:
-            d = json.loads(raw)
-        except ValueError:
-            continue
-        msg = d.get('message') if isinstance(d, dict) else None
-        if not isinstance(msg, dict) or d.get('type') != 'assistant':
-            continue
-        u = msg.get('usage') or {}
-        t = sum(u.get(k, 0) or 0 for k in ('input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'))
-        if t:
-            total = t
-        for part in msg.get('content') or []:
-            if not (isinstance(part, dict) and part.get('type') == 'tool_use' and part.get('name') == 'Read'):
-                continue
-            inp = part.get('input') or {}
-            fp = str(inp.get('file_path', ''))
-            if not fp.startswith(mem):
-                continue
-            rel = fp[len(mem):]
-            if rel in ('INDEX.md', 'team/user-preferences.md', 'LEDGER.md') or any(x in rel for x in LAYER_SKIP):
-                continue
-            try:
-                size, nlines = os.path.getsize(fp), max(1, count_lines(fp))
-            except OSError:
-                continue
-            frac = min(1.0, inp['limit'] / nlines) if isinstance(inp.get('limit'), int) else 1.0
-            reads[rel] = max(reads.get(rel, 0), int(size / 4 * frac))
-    STATE_DIR.mkdir(exist_ok=True)
-    sf.write_text(json.dumps({'offset': offset + end, 'reads': reads, 'total': total}))
-    return l0_tokens(root), reads, total
-
-
-def ktok(n):
-    return f'{n / 1000:.1f}k' if n >= 1000 else str(n)
-
-
-def context_line(root, sid, tp):
-    l0, reads, total = context_usage(root, sid, tp)
-    l1 = {r: t for r, t in reads.items() if not r.startswith('sessions/')}
-    l2 = {r: t for r, t in reads.items() if r.startswith('sessions/')}
-    mem_tok = l0 + sum(reads.values())
-    detail = f"L0 {ktok(l0)}"
-    if l1:
-        detail += f" · L1 {len(l1)} file{'s' * (len(l1) != 1)} {ktok(sum(l1.values()))}"
-    if l2:
-        detail += f" · L2 {len(l2)} log{'s' * (len(l2) != 1)} {ktok(sum(l2.values()))}"
-    if total and total >= mem_tok:
-        pct = mem_tok / total * 100
-        filled = max(1 if mem_tok else 0, round(10 * mem_tok / total))
-        gauge = '█' * filled + '░' * (10 - filled)
-        return f"◈ memory in context  ▕{gauge}▏ {pct:.0f}%  {ktok(mem_tok)} of {ktok(total)} tok  ·  {detail}"
-    return f"◈ memory in context  {ktok(mem_tok)} tok  ·  {detail}"
-
-
 def session_start(data, root):
     sid, tp = data.get('session_id', ''), data.get('transcript_path', '')
     mode = recording_mode(root)
@@ -337,8 +255,6 @@ def session_start(data, root):
     context = ' '.join(lines)
     try:  # seed the snapshot so the first Stop pulse reports only this chat's changes
         STATE_DIR.mkdir(exist_ok=True)
-        if data.get('source') in ('compact', 'clear'):  # earlier reads left the context
-            (STATE_DIR / f'{sid}.ctx.json').unlink(missing_ok=True)
         (STATE_DIR / f'{sid}.snap.json').write_text(json.dumps(snapshot(root)))
     except Exception:
         pass
@@ -426,11 +342,6 @@ def stop(data, root):
         shown.append(f"⟲ CORTEX synced  ·  {pulse_line}" + (f"  ·  ledger → {max(live)}" if live else ''))
     if short:
         shown.append(short)
-    if tp and os.path.isfile(tp) and show:
-        try:
-            shown.append(context_line(root, sid, tp))
-        except Exception:
-            pass
     if shown and show:
         out['systemMessage'] = '\n'.join(shown)
     if out:
