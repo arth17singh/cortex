@@ -4,9 +4,10 @@
 usage: cortex_status.py <project_dir> [--session <id>]
 
 Prints activity, budget, what memory says is current, what's next, and anything needing attention.
-Reuses the helpers in cortex_hook.py so the one-line startup status and this view never disagree.
+Reuses the helpers in cortex_hook.py, so both views read memory the same way.
 """
 import glob, json, os, re, subprocess, sys, time
+from datetime import datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -89,7 +90,7 @@ def line_time(transcript, lineno):
             for i, raw in enumerate(f, 1):
                 if i == lineno:
                     ts = json.loads(raw).get('timestamp', '')
-                    return time.mktime(time.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) - time.timezone
+                    return datetime.fromisoformat(ts[:19] + '+00:00').timestamp()  # transcript times are UTC
     except (OSError, ValueError, AttributeError):
         pass
     return None
@@ -135,7 +136,7 @@ def main():
 
     print(f"◉ CORTEX status  ·  {mode}" + (f"  ·  chat {sid[:8]}" if sid else ''))
     print(rule)
-    print(f"activity   {spark}  {writes} memory write{'s' * (writes != 1)} in 7 days"
+    print(f"activity   {spark}  {writes} memory file{'s' * (writes != 1)} touched in 7 days"
           + (f"  ·  last {fresh[0]} ({fresh[1]})" if fresh else ''))
     print(f"budget     L0 {bar(l0, L0_BUDGET)} {l0 / 1000:.1f}k / {L0_BUDGET // 1000}k tok"
           f"  ·  {l1} L1 topic{'s' * (l1 != 1)}  ·  {l2} L2 chat log{'s' * (l2 != 1)}")
@@ -210,12 +211,15 @@ def main():
         watch.append(f"L0 at {l0 / L0_BUDGET:.0%} of budget")
     if old_untracked:
         watch.append(f"{len(old_untracked)} untracked chat{'s' * (len(old_untracked) != 1)} near transcript expiry")
+    if 'no Recording line' in mode:
+        watch.append('INDEX.md has no "Recording:" line (treated as auto)')
     watch += warnings[:2]
     hooks, commit = settings(root)
     if not hooks:
         watch.append('hooks not installed')
     logs = 'off' if not h.logs_enabled(root) else 'on'
-    print(f"settings   recording {mode}  \u00b7  hooks {'\u2713' if hooks else '\u2717'}  \u00b7  logs {logs}  \u00b7  commit {commit}")
+    mark = '\u2713' if hooks else '\u2717'
+    print(f"settings   recording {mode}  \u00b7  hooks {mark}  \u00b7  logs {logs}  \u00b7  commit {commit}")
     print(rule)
     if watch:
         for i, w in enumerate(watch):

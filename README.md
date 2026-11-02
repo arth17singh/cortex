@@ -109,7 +109,7 @@ The values in these samples are illustrative; the layout is real output. Turn th
 
 ## 🚀 Install
 
-**Requirements:** [Claude Code](https://claude.com/claude-code) and `python3`.
+**Requirements:** [Claude Code](https://claude.com/claude-code) and Python 3.9 or newer as `python3`.
 
 ```bash
 git clone https://github.com/arth17singh/cortex.git
@@ -127,7 +127,7 @@ That copies the skill to `~/.claude/skills/cortex` and offers to register the ho
 ./install.sh --uninstall-hooks   # remove the hooks again
 ```
 
-An existing skill install is moved aside to `cortex.bak-<timestamp>`, never overwritten.
+An existing skill install is moved to `cortex-backups/cortex.bak-<timestamp>` next to the `skills/` folder, never overwritten.
 
 ### 🪝 Hooks
 

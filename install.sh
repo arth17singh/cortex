@@ -40,7 +40,9 @@ if [ "$REMOVE" = 1 ]; then
 fi
 mkdir -p "$DEST_ROOT"
 if [ -e "$DEST" ] || [ -L "$DEST" ]; then
-  BACKUP="$DEST.bak-$(date +%Y%m%d%H%M%S)"
+  # back up outside skills/, or Claude Code would load the backup as a second "cortex" skill
+  mkdir -p "$DEST_ROOT/../cortex-backups"
+  BACKUP="$(cd "$DEST_ROOT/.." && pwd)/cortex-backups/cortex.bak-$(date +%Y%m%d%H%M%S)"
   mv "$DEST" "$BACKUP"
   echo "existing install moved to $BACKUP"
 fi

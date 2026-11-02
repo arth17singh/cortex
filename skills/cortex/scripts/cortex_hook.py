@@ -24,10 +24,14 @@ HERE = Path(__file__).resolve().parent
 
 
 def find_root(cwd):
-    p = Path(cwd or os.getcwd()).resolve()
-    for d in [p, *p.parents]:
-        if (d / 'memory' / 'LEDGER.md').is_file() and (d / 'memory' / 'INDEX.md').is_file():
-            return d
+    """The project root holding CORTEX memory. Prefers CLAUDE_PROJECT_DIR, so a `cd` elsewhere doesn't hide it."""
+    for start in (os.environ.get('CLAUDE_PROJECT_DIR'), cwd, os.getcwd()):
+        if not start:
+            continue
+        p = Path(start).resolve()
+        for d in [p, *p.parents]:
+            if (d / 'memory' / 'LEDGER.md').is_file() and (d / 'memory' / 'INDEX.md').is_file():
+                return d
     return None
 
 
@@ -40,15 +44,22 @@ def count_lines(path):
 
 
 def recording_mode(root):
+    """The index's Recording value, found anywhere on its line (e.g. `Last updated: … · Recording: auto`).
+
+    A missing line reads as 'auto (no Recording line)', which callers treat as auto and status flags.
+    """
     for line in (root / 'memory' / 'INDEX.md').read_text(encoding='utf-8', errors='replace').splitlines():
-        if line.lower().startswith('recording:'):
-            return line.split(':', 1)[1].strip()
-    return 'auto'
+        m = re.search(r'\brecording:\s*(.+?)\s*(?:\u00b7|\||$)', line, re.I)
+        if m and m.group(1):
+            return m.group(1).strip()
+    return 'auto (no Recording line)'
 
 
 def ledger_row(root, session_id):
     """Return (state, ranges_text) for this chat, or (None, '')."""
     short = session_id[:8]
+    if len(short) < 8:
+        return None, ''
     for row in (root / 'memory' / 'LEDGER.md').read_text(encoding='utf-8', errors='replace').splitlines():
         cells = [c.strip() for c in row.strip().strip('|').split('|')]
         if len(cells) >= 4 and cells[0].strip('`').startswith(short):
@@ -56,14 +67,23 @@ def ledger_row(root, session_id):
     return None, ''
 
 
+KINDS = {'mined', 'live', 'skipped', 'paused'}  # keep in step with ledger_scan.py
+
+
 def ranges(text):
+    """'mined 1-1200; live 1201-2925, 2930; paused 500-' -> [(kind, a, b_or_None)], parsed like ledger_scan.py."""
     t = re.sub(r'\([^)]*\)', ' ', text.replace('`', '').replace('*', '')).replace('–', '-').replace('—', '-').lower()
     out, kind = [], None
     for part in re.split(r'[;,]', t):
-        m = re.fullmatch(r'\s*(?:([a-z]+)\s+)?(\d+)\s*-\s*(\d*)\s*', part)
-        if m:
-            kind = m.group(1) or kind
-            out.append((kind, int(m.group(2)), int(m.group(3)) if m.group(3) else None))
+        part = part.strip()
+        m = re.fullmatch(r'(?:([a-z]+)\s+)?(\d+)\s*-\s*(\d*)', part) or re.fullmatch(r'(?:([a-z]+)\s+)?(\d+)()', part)
+        if not m or not (m.group(1) or kind):
+            continue
+        kind = m.group(1) or kind
+        if kind not in KINDS:
+            continue
+        a = int(m.group(2))
+        out.append((kind, a, (int(m.group(3)) if m.group(3) else None) if '-' in part else a))
     return out
 
 
@@ -88,6 +108,22 @@ def memory_stats(root):
 
 STATE_DIR = Path(tempfile.gettempdir()) / 'cortex-hook'
 LAYER_SKIP = ('.migrated', '_templates')
+
+
+def read_state(path, default):
+    """A per-chat state file, or `default` if it is missing or corrupt (a bad file must never silence the hook)."""
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return default
+
+
+def write_state(path, value):
+    """Write atomically (temp file + rename), so a hook killed mid-write can't leave a corrupt file."""
+    STATE_DIR.mkdir(exist_ok=True)
+    tmp = path.with_suffix(f'.{os.getpid()}.tmp')
+    tmp.write_text(json.dumps(value))
+    os.replace(tmp, path)
 
 
 def snapshot(root):
@@ -154,7 +190,10 @@ def freshest(root):
 
 
 def activity(root, days=7):
-    """(sparkline, writes) of memory files modified per day over the last `days` days, oldest first."""
+    """(sparkline, files) of memory files last touched on each of the last `days` days, oldest first.
+
+    Each file counts once, on the day of its latest change (it measures files touched, not edits).
+    """
     ticks = '▁▂▃▄▅▆▇█'
     counts = [0] * days
     today = time.mktime(time.strptime(time.strftime('%Y-%m-%d'), '%Y-%m-%d'))
@@ -236,14 +275,14 @@ def session_start(data, root):
     lines.append(f"This chat's ledger row: {state} {rtext}." if state else "This chat has no ledger row yet.")
     try:
         out = subprocess.run([sys.executable, str(HERE / 'ledger_scan.py'), str(root), '--current', sid, '--json'],
-                             capture_output=True, text=True, timeout=20)
+                             capture_output=True, text=True, timeout=12)  # under the hook's own 20s
         scan = json.loads(out.stdout)
         todo = [f"{c['short']} {', '.join(f'{a}-{b}' for a, b in c['backfill'])}" for c in scan.get('chats', [])
                 if c.get('backfill') and 'live' in (c.get('ranges') or '')]
         untracked = [c['short'] for c in scan.get('chats', []) if c.get('state') == 'untracked' and c.get('backfill')]
         gaps = todo
         if todo:
-            lines.append('Recover these unlogged tails before other work (CLAUDE.md §1): ' + '; '.join(todo) + '.')
+            lines.append('Recover these unlogged tails before other work (CORTEX rules: Start): ' + '; '.join(todo) + '.')
         if untracked:
             lines.append(f"{len(untracked)} chat(s) were never tracked; suggest /cortex all if they matter.")
         if scan.get('warnings'):
@@ -254,8 +293,7 @@ def session_start(data, root):
         lines.append("After compaction: keep appending to this chat's existing session log (listed in its ledger row).")
     context = ' '.join(lines)
     try:  # seed the snapshot so the first Stop pulse reports only this chat's changes
-        STATE_DIR.mkdir(exist_ok=True)
-        (STATE_DIR / f'{sid}.snap.json').write_text(json.dumps(snapshot(root)))
+        write_state(STATE_DIR / f'{sid}.snap.json', snapshot(root))
     except Exception:
         pass
     if not logs_enabled(root):
@@ -292,12 +330,11 @@ def nudge(root, sid, tp):
     covered_to = max([b or a for k, a, b in live], default=0)
     if not live and n < MIN_UNTRACKED:
         return None, None
-    STATE_DIR.mkdir(exist_ok=True)
     marker = STATE_DIR / f'{sid}.json'
-    last = json.loads(marker.read_text()).get('nudged_at', 0) if marker.exists() else 0
+    last = read_state(marker, {}).get('nudged_at', 0)
     if n - max(covered_to, last) < NUDGE_EVERY:
         return None, None
-    marker.write_text(json.dumps({'nudged_at': n}))
+    write_state(marker, {'nudged_at': n})
     if live:
         msg = (f"CORTEX: {n - covered_to} transcript lines since this chat's last memory update "
                f"(ledger live end {covered_to}, transcript now {n}). If anything since then passes the storage test, "
@@ -306,7 +343,7 @@ def nudge(root, sid, tp):
     else:
         msg = (f"CORTEX: this chat ({sid[:8]}) has no session log or ledger row yet, and recording is {mode}. "
                f"If anything so far passes the storage test, create the session log and the ledger row "
-               f"(live 1-{n}) per CLAUDE.md §4. If nothing does, add the row as 'skipped 1-{n}'. Then stop.")
+               f"(live 1-{n}) per the CORTEX rules (Checkpoint). If nothing does, add the row as 'skipped 1-{n}'. Then stop.")
     short = (f"▸ CORTEX checkpoint due  ·  {n - covered_to} unlogged lines "
              f"(ledger {covered_to} → transcript {n})")
     return msg, short
@@ -321,12 +358,12 @@ def stop(data, root):
     show = logs_enabled(root)
     pulse_line = ''
     try:  # live pulse: what actually changed in memory since the last turn
-        STATE_DIR.mkdir(exist_ok=True)
         snap_file = STATE_DIR / f'{sid}.snap.json'
         new = snapshot(root)
-        if snap_file.exists():
-            pulse_line = pulse(json.loads(snap_file.read_text()), new)
-        snap_file.write_text(json.dumps(new))
+        old = read_state(snap_file, None)
+        if isinstance(old, dict):
+            pulse_line = pulse(old, new)
+        write_state(snap_file, new)
     except Exception:
         pass
     msg, short = (None, None)
