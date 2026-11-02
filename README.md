@@ -85,6 +85,15 @@ You can see CORTEX working, without it getting in your way.
 
 **Claude itself stays quiet about memory.** It never writes "Saved to memory" or "Session log: …" in a reply; the synced line already says what changed. It mentions memory only when something needs your OK, once per chat while recording is paused, when you run a `/cortex` command, or when it cites memory as the source of an answer.
 
+**When memory changes an answer, you see it.** The one exception to the silence is a `◈ recalled` line at the end of a reply, written only when the answer depended on something you didn't say in this chat. It shows how deep memory had to dig, how old the memory is, and whether to trust it:
+
+```
+◈ recalled · L2 · 12w · Kafka rejected as event bus: ops burden for a team of four
+◈ recalled · L1 · 6w · superseded · fraud scoring: Stripe Radar → in-house model
+```
+
+`L0` is the always-loaded map, `L1` a topic file, `L2` a session log, `L3` a raw chat. Flags appear only when they matter: `superseded` (a newer decision replaced an older one), `unverified`, or `stale`. Routine answers, preferences and the rules never get one, so a `◈` line means memory earned its keep, and you can spot an outdated memory at a glance.
+
 **On demand**, `/cortex status` prints a dashboard: the memory budget and the rules version, routing quality (topic files missing from the map, how many facts carry sources), how much memory text has actually been pulled into this chat (it measures the size of the tool results, so `Read`, `cat` and `grep` on `memory/` all count, and it resets after compaction), what memory says is current (`now`), your open threads (`next`), ledger totals and anything needing `attention`:
 
 ```

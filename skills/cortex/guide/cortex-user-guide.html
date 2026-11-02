@@ -428,6 +428,19 @@
   <p class="text-sm font-semibold mt-6 mb-2">What you see</p>
   <pre>learning   self-test 7/9 → 8/9 → 9/9 (last 2026-11-02)  ·  next self-test after 3 more changed logs  ·  4 corrections learned</pre>
   <p class="text-xs muted mt-2">The self-test says nothing in chat. Its result is the <code>learning</code> row of <span class="cmd">/cortex status</span>, and the files it repaired show in the synced line. The score trend in this example is illustrative.</p>
+
+  <h3 class="text-lg font-semibold mt-10 mb-2" id="recall-line">When memory shapes an answer</h3>
+  <p class="prose-w mb-3">Claude stays quiet about memory work, with one exception. When an answer depended on something you didn't say in this chat, the reply ends with a <code>◈ recalled</code> line showing what memory supplied, how deep it had to dig, how old the memory is, and whether to trust it.</p>
+  <pre>◈ recalled · L2 · 12w · Kafka rejected as event bus: ops burden for a team of four
+◈ recalled · L1 · 6w · superseded · fraud scoring: Stripe Radar → in-house model</pre>
+  <div class="overflow-x-auto mt-3"><table class="table table-sm bg-base-200 rounded-box">
+    <tbody>
+      <tr><td><code>L0</code> … <code>L3</code></td><td>Where it was found: the always-loaded map (L0), a topic file (L1), a session log (L2), or a raw chat (L3). Deeper means older or subtler.</td></tr>
+      <tr><td><code>12w</code></td><td>How long ago it was decided or recorded.</td></tr>
+      <tr><td><code>superseded</code> · <code>unverified</code> · <code>stale</code></td><td>Shown only when it matters: a newer decision replaced an older one, the fact has no source, or a status is more than 14 days old. That's your cue to double-check.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="text-xs muted mt-2">Each line is a 12-word gist; the detail is in the answer itself. At most two lines appear, and the second ends with <code>· +2 more</code> when more memories were involved. Ask "show me that memory" to see the full text with its source. Routine answers, your preferences and the rules never get a line, so a <code>◈</code> means memory changed the answer.</p>
 </section>
 
 <!-- ============================================================ LEDGER -->

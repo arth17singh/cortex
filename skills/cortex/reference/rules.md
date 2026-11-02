@@ -67,3 +67,12 @@ When the hook or `/cortex status` lists a consolidation reason (a map, rollup or
 
 ## Silent memory
 Memory work is silent. Never say in a reply that you read, wrote, logged or checkpointed memory: no "Saved to memory", no "Session log: …", no `⟦CORTEX⟧` lines. The Stop hook already shows the user a `⟲ CORTEX synced` line naming what changed. Still say anything that needs the user's OK, the paused reminder, and the reply to a `/cortex` command the user ran. Citing memory as a source in an answer is fine (see Reading).
+
+## Recall line (the one memory line you do write)
+When an answer depends on something from memory that the user didn't say in this chat (a past decision, a rejected option, an old number or fact), end the reply with one line per memory that changed the answer, at most two:
+`◈ recalled · <layer> · <age> · <the memory, ≤12 words>`
+- **layer:** the deepest layer you had to read to get it: `L0` (always loaded), `L1` (topic file), `L2` (session log), `L3` (raw chat).
+- **age:** since it was decided or recorded, from its date: `today`, `3d`, `11w`, `5mo`.
+- **flag,** only when it matters, after the age: `superseded` (name the old and the new: "Radar → in-house model"), `unverified` (no source tag and not checked in code), `stale` (a status older than 14 days).
+- **Long memories become their gist:** the line is a label, not a quote, and the detail belongs in the answer. If more than two memories shaped the answer, show the two that mattered most and end the second line with `· +<n> more`. If the user asks to see a memory, quote it with its `file:line`.
+- Never for preferences, these rules, or memory the answer didn't need. No file names. Example: `◈ recalled · L2 · 12w · Kafka rejected as event bus: ops burden for a team of four`
