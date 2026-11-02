@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "python3 \"$HOME/.claude/skills/cortex/scripts/cortex_hook.py\"", "timeout": 20}]}
+    ],
+    "Stop": [
+      {"hooks": [{"type": "command", "command": "python3 \"$HOME/.claude/skills/cortex/scripts/cortex_hook.py\"", "timeout": 10}]}
+    ]
+  }
+}

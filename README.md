@@ -1,10 +1,18 @@
 # 🧠 CORTEX
 
-**Project memory for Claude Code that maintains itself.**
+**Claude Code that remembers your project, and gets sharper the longer you work.**
 
-Every new Claude Code chat starts with amnesia. You re-explain the architecture, repeat your preferences, and rediscover decisions you made last week. CORTEX gives each project a durable, layered memory that Claude reads at the start of a chat and keeps up to date as you work.
+Every new chat normally starts from zero. You re-explain the architecture, repeat your preferences and rediscover last week's decisions. With CORTEX installed, Claude opens each session already knowing the project: what was decided and why, how you like to work, and what's still open.
 
-It's a single Claude Code skill: a few markdown files and three small Python scripts. It has no dependencies, no server and no database. The memory is plain markdown that you can read, edit and `git diff`.
+CORTEX is not a pile of notes. It's a memory system with structure and judgment:
+
+- **It knows what's worth keeping.** Every candidate fact must pass one test: *would a future session be better informed for having this?* Noise, dead ends and chatter about the memory system itself are dropped.
+- **It knows where things go.** Current truth, per-chat history and raw transcripts live in separate layers, so Claude reads a few hundred tokens up front and drills down only when a question needs it.
+- **It knows what it doesn't know.** A coverage ledger tracks exactly which lines of which chats are in memory. Claude never claims to remember something it hasn't actually logged, and it flags answers it couldn't verify.
+- **It keeps itself honest.** Facts carry source tags, answers cite `file:line`, and `/cortex audit` catches duplicates, drift and oversized files.
+- **It asks before it acts.** Anything that reads many chats or changes your settings is shown to you first.
+
+It's one Claude Code skill: markdown, three small Python scripts and two hooks. It has no dependencies, no server and no database. The memory is plain markdown that you can read, edit and `git diff`.
 
 > 📖 **[Open the user guide](skills/cortex/guide/cortex-user-guide.html)**: a visual walkthrough of the layers, the ledger and every command. Download it and open it in your browser.
 
@@ -51,14 +59,30 @@ cd cortex
 ./install.sh
 ```
 
-That copies the skill to `~/.claude/skills/cortex`. Other options:
+That copies the skill to `~/.claude/skills/cortex` and offers to register the hooks (see below). Other options:
 
 ```bash
+./install.sh --hooks     # install the skill and the hooks without prompting
+./install.sh --no-hooks  # skill only
 ./install.sh --link      # symlink instead: `git pull` here updates the skill everywhere
-./install.sh --project   # install into ./.claude/skills of the current project only
+./install.sh --project   # install into ./.claude/skills and ./.claude/settings.json of this project only
+./install.sh --uninstall-hooks   # remove the hooks again
 ```
 
-An existing install is moved aside to `cortex.bak-<timestamp>`, never overwritten.
+An existing skill install is moved aside to `cortex.bak-<timestamp>`, never overwritten.
+
+### 🪝 Hooks
+
+The hooks are what make CORTEX proactive, so you should install them. They are two entries in `settings.json` that run `scripts/cortex_hook.py`:
+
+| Hook | What it does |
+|---|---|
+| `SessionStart` | Tells Claude this chat's id and transcript, the recording mode, and any unlogged gaps in other chats that need recovering |
+| `Stop` | When the ledger falls far behind the transcript, gives Claude a gentle, rate-limited nudge to log what's worth keeping |
+
+`install.sh` merges them into the existing hook arrays without touching your other hooks. It backs up `settings.json` first, is safe to re-run, and re-parses the result to check it. Both hooks do nothing in projects that haven't enabled CORTEX, and they exit quietly if anything goes wrong.
+
+To add them by hand, merge [`hooks/settings-snippet.json`](hooks/settings-snippet.json) into `~/.claude/settings.json`. You can also run `python3 hooks/install_hooks.py <settings.json> <path-to-cortex_hook.py>` yourself, or use `/cortex config hooks=install` from inside Claude Code.
 
 **Manual install:** copy `skills/cortex/` to `~/.claude/skills/cortex/`.
 
@@ -113,7 +137,10 @@ Nothing is installed or changed until you approve it.
 
 ```
 cortex/
-├── install.sh                      installer (copy / --link / --project)
+├── install.sh                      installer (copy / --link / --project, optional hooks)
+├── hooks/
+│   ├── settings-snippet.json       the two hook entries, ready to merge
+│   └── install_hooks.py            safe, idempotent merge/remove into settings.json
 ├── README.md
 ├── LICENSE
 └── skills/cortex/
@@ -132,7 +159,7 @@ cortex/
 
 - **Transcripts expire.** Claude Code deletes old transcripts after `cleanupPeriodDays` (default 30, set in `~/.claude/settings.json`). That limits how far back `/cortex all` can reach, so run it early. `/cortex status` warns you about chats approaching that limit.
 - **`/cortex` is user-invoked only.** The skill sets `disable-model-invocation`, so Claude won't start it on its own.
-- **Uninstall:** delete `~/.claude/skills/cortex`, remove the `cortex_hook.py` entries from your `settings.json` hooks, and delete the CORTEX block from your project's `CLAUDE.md` (it's wrapped in `<!-- CORTEX:BEGIN -->` and `<!-- CORTEX:END -->` markers). Your `memory/` folder is yours to keep or delete.
+- **Uninstall:** run `./install.sh --uninstall-hooks`, delete `~/.claude/skills/cortex`, and delete the CORTEX block from your project's `CLAUDE.md` (it's wrapped in `<!-- CORTEX:BEGIN -->` and `<!-- CORTEX:END -->` markers). Your `memory/` folder is yours to keep or delete.
 
 ---
 
