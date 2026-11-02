@@ -3,7 +3,7 @@ name: cortex
 description: "CORTEX: layered, self-maintaining project memory. Subcommands: start (record from now), all (backfill untracked past chats), status, save, pause/resume, exclude/include, forget, recall, audit, config, help. Use when the user runs /cortex."
 argument-hint: "help | start [--from-chat-start] | all [only <chat>] [since DATE] [last N] [exclude X] [include-skipped] [--yes] | status | save [note] | pause [--project] | resume [--project] | exclude <chat> | include <chat> | forget <topic> | recall <question> | audit | config [key=value]"
 disable-model-invocation: true
-allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/ledger_scan.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/extract_transcript.py *)
+allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/ledger_scan.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/extract_transcript.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_status.py *)
 ---
 
 # CORTEX (v4)
@@ -61,12 +61,12 @@ Record **this chat from now on**; no past chats are read.
 6. **This chat's row:** keep existing ranges and only open or extend `live` from <now>. If there's no row, write `skipped 1-<now-1>; live <now>-<now>`. If the user wants the whole chat, capture 1..now-1 first and write `live 1-<now>`.
 
 ### status
-Show, without changing anything:
-- **Coverage:** the scanner table, summarised. Per chat: state, dates, ranges, `backfill`, `active`.
+Read-only. **First run the dashboard and show its output verbatim in a code block:**
+`python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_status.py "${CLAUDE_PROJECT_DIR}" --session ${CLAUDE_SESSION_ID}`
+
+It covers activity, the L0 budget, what's current (`now`), what's next, the ledger totals and anything needing `attention`. Then add only what the dashboard can't know:
 - **Settings:** recording mode; whether this chat is paused; hooks installed (look for `cortex_hook.py` in `~/.claude/settings.json` or `.claude/settings.json`); the commit setting.
-- **Size:** L0 size (`wc -c` of the `CLAUDE.md` block + `INDEX.md` + preferences, ÷ 4 ≈ tokens) against the ~3k target, plus the largest files against their caps.
-- **Warnings:**
-  - the scanner's warnings;
+- **Extra warnings:**
   - untracked chats older than about 25 days (Claude Code deletes transcripts after `cleanupPeriodDays`, default 30, so suggest `/cortex all`);
   - an index out of sync with the files, or facts duplicated across L1 files;
   - `memory/` not git-ignored when commit is `no`.

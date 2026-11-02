@@ -48,33 +48,48 @@ A crashed, closed or abandoned chat therefore leaves a recoverable trace instead
 - **Consent:** anything that reads many chats, deletes memory or changes git, hooks or settings is shown to you first and waits for your OK.
 - **Control:** pause per chat or per project, exclude a chat for good, or `forget` a topic. Forgetting purges every match and records the label, never the content, so the topic is not re-learned.
 
-### 5. Live telemetry
-You can see CORTEX working. At the top of every chat the `SessionStart` hook prints a briefing built from your memory files, and Claude prints one-line `⟦CORTEX⟧` entries as it reads and writes memory.
+### 5. Live status
+You can see CORTEX working, without it getting in your way.
 
-- **now:** the "Where we are" bullets from the index.
-- **next:** the open threads from your most recent session log, so you can pick up where you left off.
-- **ready:** what was loaded, and what stays available on demand.
-- **watch:** only when something needs attention: unlogged chat tails being recovered, L1 files that haven't been updated for 30 days or more, and facts still marked unverified.
-
+**At the start of every chat**, one line from the `SessionStart` hook. The bars are a 7-day sparkline of memory writes, so you can see at a glance whether memory is being kept up to date:
 
 ```
-╭─ CORTEX ▸ auto · a1b2c3d4 ──────────────────────────────────────────────╮
-│ now     ▸ Auth moved to short-lived tokens, rollout to staging done     │
-│         ▸ Billing webhooks rewritten, retries still flaky               │
-│ next    ◦ Add idempotency keys to the webhook handler                   │
-│         ◦ Load-test staging before the Friday cut                       │
-│ ready   2.1k tok loaded · 12 topics and 31 past chats on demand         │
-│ watch   ⚠ engineering/deploy.md not updated in 48d · 2 unverified facts │
-╰─────────────────────────────────────────────────────────────────────────╯
+◉ CORTEX auto  ·  12 topics  ·  31 chats remembered  ·  ▁▃▅··█▂ 7d  ·  last write 2h ago  ·  ⚠ 1 unlogged tail, recovering  ·  /cortex status
+```
 
+**After a turn that changed memory**, a pulse naming exactly what was written. It is a before and after snapshot of `memory/`, so it never appears when nothing changed:
+
+```
+⟲ CORTEX synced  ·  L1 engineering/auth.md +6 · L2 2026-11-01_a1b2c3d4-auth.md +14  ·  ledger → 388
+```
+
+**While Claude works**, one-line `⟦CORTEX⟧` entries for reads, writes, recoveries and checkpoints (written by Claude under the rules in the `CLAUDE.md` block, and only for actions it actually performed):
+
+```
 ⟦CORTEX⟧ recall ▸ L1 engineering/auth.md · 118 lines · trust: sourced L1
 ⟦CORTEX⟧ commit ▸ L2 2026-11-01_a1b2c3d4-auth.md (L341-388) + L1 engineering/auth.md · ledger live → 388
-⟦CORTEX⟧ recover ▸ 9f3e21aa L120-410 → sessions/2026-10-30_9f3e21aa-billing.md
-⟲ CORTEX synced  ·  L1 engineering/auth.md +6 · L2 2026-11-01_a1b2c3d4-auth.md +14  ·  ledger → 388
-▸ CORTEX checkpoint due  ·  112 unlogged lines (ledger 388 → transcript 500)
 ```
 
-The panel, the `⟲ synced` pulse and the checkpoint notice come from the hooks. They are computed from your files: the pulse is a before/after snapshot of `memory/`, so it appears only on turns where memory really changed. The `⟦CORTEX⟧` lines are written by Claude under the rules in the `CLAUDE.md` block, and only for actions it actually performed. Turn it all off with `/cortex config logs=off`, or set `CORTEX_QUIET=1` to silence the hook output alone.
+**On demand**, `/cortex status` prints a dashboard: the L0 budget, what memory says is current (`now`), your open threads (`next`), ledger totals and anything needing `attention`:
+
+```
+◉ CORTEX status  ·  auto  ·  chat a1b2c3d4
+──────────────────────────────────────────────────────────────────
+activity   ···██··  2 memory writes in 7 days  ·  last 2h ago (engineering/auth.md)
+budget     L0 ███████░░░ 2.1k / 3k tok  ·  12 L1 topics  ·  31 L2 chat logs
+now        ▸ Auth moved to short-lived tokens, rollout to staging done
+           ▸ Billing webhooks rewritten, retries still flaky
+next       ◦ Add idempotency keys to the webhook handler
+           ◦ Load-test staging before the Friday cut
+ledger     940 lines recorded  ·  200 pending  ·  100 skipped on purpose
+this chat  ███████░░░ logged through line 340 of 500
+──────────────────────────────────────────────────────────────────
+attention  ⚠ 1 chat with unlogged tails (9f3e21aa)
+           ⚠ engineering/deploy.md not updated in 48 days
+           ⚠ 2 facts still marked unverified
+```
+
+The values in these samples are illustrative; the layout is real output. Turn the live output off with `/cortex config logs=off`, or set `CORTEX_QUIET=1` to silence the hook alone.
 
 ---
 
@@ -191,6 +206,7 @@ cortex/
     ├── reference/                  build steps, CLAUDE.md block, ledger and protocol templates
     └── scripts/
         ├── ledger_scan.py          coverage scanner and transcript search
+        ├── cortex_status.py        the /cortex status dashboard
         ├── extract_transcript.py   readable, redacted transcript extraction
         └── cortex_hook.py          SessionStart / Stop hook
 ```

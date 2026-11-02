@@ -9,7 +9,7 @@ Stop: if this chat is recording and its ledger `live` end is far behind the tran
   ledger. It never edits the ledger itself: only Claude may mark lines as covered, after it has
   actually logged them. Nudges are rate-limited per chat.
 
-Both events also emit a `systemMessage` the user sees in their terminal: a status panel at SessionStart,
+Both events also emit a `systemMessage` the user sees in their terminal: a one-line status at SessionStart,
 and at Stop a 'synced' pulse (what changed in memory this turn, from file snapshots) plus any checkpoint nudge
 (put `Logs: off` anywhere in memory/INDEX.md, or set CORTEX_QUIET=1, to silence it).
 
@@ -86,14 +86,6 @@ def memory_stats(root):
     return l0 // 4, len(l1), len(list((mem / 'sessions').glob('*.md')))
 
 
-def panel(title, rows, cap=78):
-    rows = [r if len(r) <= cap else r[:cap - 1] + '…' for r in rows]
-    width = max(len(title) + 4, *(len(r) for r in rows)) + 2
-    top = f'╭─ {title} ' + '─' * (width - len(title) - 3) + '╮'
-    body = [f'│ {r.ljust(width - 1)}│' for r in rows]
-    return '\n'.join([top, *body, '╰' + '─' * width + '╯'])
-
-
 STATE_DIR = Path(tempfile.gettempdir()) / 'cortex-hook'
 LAYER_SKIP = ('.migrated', '_templates')
 
@@ -159,6 +151,23 @@ def freshest(root):
         return None
     f = max(files, key=lambda x: x.stat().st_mtime)
     return age(time.time() - f.stat().st_mtime), f.relative_to(root / 'memory').as_posix()
+
+
+def activity(root, days=7):
+    """(sparkline, writes) of memory files modified per day over the last `days` days, oldest first."""
+    ticks = '▁▂▃▄▅▆▇█'
+    counts = [0] * days
+    today = time.mktime(time.strptime(time.strftime('%Y-%m-%d'), '%Y-%m-%d'))
+    for f in (root / 'memory').rglob('*.md'):
+        if f.name == 'LEDGER.md' or any(x in f.as_posix() for x in LAYER_SKIP):
+            continue
+        m = f.stat().st_mtime
+        d = 0 if m >= today else int((today - m) // 86400) + 1
+        if 0 <= d < days:
+            counts[days - 1 - d] += 1
+    top = max(counts) or 1
+    spark = ''.join('·' if c == 0 else ticks[min(7, round(c / top * 7))] for c in counts)
+    return spark, sum(counts)
 
 
 def clean(text, n=56):
@@ -253,30 +262,16 @@ def session_start(data, root):
         print(context)
         return
     l0, l1, l2 = memory_stats(root)
-    rows = []
-    now = where_we_are(root)
-    if now:
-        rows += [('now     ▸ ' if i == 0 else '        ▸ ') + clean(x, 62) for i, x in enumerate(now[:2])]
-    else:
-        rows.append('now     memory is new, nothing recorded yet')
-    steps, src = next_steps(root, sid)
-    rows += [('next    ◦ ' if i == 0 else '        ◦ ') + clean(x, 62) for i, x in enumerate(steps[:3])]
-    rows.append(f"ready   {l0 / 1000:.1f}k tok loaded · {l1} topic{'s' * (l1 != 1)} and "
-                f"{l2} past chat{'s' * (l2 != 1)} on demand")
-    watch = []
+    spark, _ = activity(root)
+    fresh = freshest(root)
+    parts = [f"◉ CORTEX {mode}", f"{l1} topic{'s' * (l1 != 1)}", f"{l2} chat{'s' * (l2 != 1)} remembered", f"{spark} 7d"]
+    if fresh:
+        parts.append(f"last write {fresh[0]}")
     if gaps:
-        watch.append(f"{len(gaps)} unlogged tail{'s' * (len(gaps) != 1)} (recovering)")
-    stale, unverified = l1_health(root)
-    if stale:
-        watch.append(f"{stale[0]} not updated in {stale[1]}d")
-    if unverified:
-        watch.append(f"{unverified} unverified fact{'s' * (unverified != 1)}")
-    if watch:
-        rows.append('watch   ⚠ ' + ' · '.join(watch))
+        parts.append(f"⚠ {len(gaps)} unlogged tail{'s' * (len(gaps) != 1)}, recovering")
     if data.get('source') == 'compact':
-        rows.append("resumed after compaction, re-attaching this chat's session log")
-    title = f"CORTEX ▸ {mode} · {sid[:8]}" if not mode.startswith('paused') else f"CORTEX ▸ {mode}"
-    msg = panel(title, rows)
+        parts.append('resumed after compaction')
+    msg = '  ·  '.join(parts) + '  ·  /cortex status'
     print(json.dumps({'systemMessage': msg,
                       'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': context}}))
 
