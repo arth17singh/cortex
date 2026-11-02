@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cortex-dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CORTEX: user guide</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/daisyui.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4/dist/index.global.js"></script>
+<script>
+  // theme: saved choice, else the OS preference
+  (function () {
+    var t = localStorage.getItem('cortex-guide-theme') ||
+      (matchMedia('(prefers-color-scheme: light)').matches ? 'cortex-light' : 'cortex-dark');
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
+<style>
+  [data-theme="cortex-dark"] {
+    color-scheme: dark;
+    --color-base-100: #0e1116; --color-base-200: #151a22; --color-base-300: #1f2631; --color-base-content: #e4e8ef;
+    --color-primary: #7aa2ff; --color-primary-content: #0b1220;
+    --color-secondary: #b794f6; --color-secondary-content: #150b26;
+    --color-accent: #34d3b4; --color-accent-content: #04201a;
+    --color-neutral: #2a3240; --color-neutral-content: #d7dde7;
+    --color-info: #60b8ff; --color-info-content: #031726;
+    --color-success: #4ade80; --color-success-content: #05210f;
+    --color-warning: #f2b84b; --color-warning-content: #261a03;
+    --color-error: #f87171; --color-error-content: #2a0606;
+    --radius-selector: .5rem; --radius-field: .5rem; --radius-box: .9rem;
+    --size-selector: .25rem; --size-field: .25rem; --border: 1px; --depth: 0; --noise: 0;
+    --muted: #9aa4b2; --hairline: #262e3a;
+  }
+  [data-theme="cortex-light"] {
+    color-scheme: light;
+    --color-base-100: #f7f8fa; --color-base-200: #ffffff; --color-base-300: #e7eaf0; --color-base-content: #1b2230;
+    --color-primary: #2f5fe0; --color-primary-content: #ffffff;
+    --color-secondary: #7c4ddb; --color-secondary-content: #ffffff;
+    --color-accent: #0f9d84; --color-accent-content: #ffffff;
+    --color-neutral: #2a3240; --color-neutral-content: #f3f5f8;
+    --color-info: #1d7fd1; --color-info-content: #ffffff;
+    --color-success: #1f9d55; --color-success-content: #ffffff;
+    --color-warning: #b77b06; --color-warning-content: #ffffff;
+    --color-error: #d64545; --color-error-content: #ffffff;
+    --radius-selector: .5rem; --radius-field: .5rem; --radius-box: .9rem;
+    --size-selector: .25rem; --size-field: .25rem; --border: 1px; --depth: 0; --noise: 0;
+    --muted: #5d6879; --hairline: #e3e7ee;
+  }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .muted { color: var(--muted); }
+  .card { border: 1px solid var(--hairline); }
+  h1 .mark { color: var(--color-primary); }
+  a.navlink { color: var(--muted); text-decoration: none; padding: .35rem .7rem; border-radius: .5rem; border: 1px solid var(--hairline); }
+  a.navlink:hover, a.navlink:focus-visible { color: var(--color-base-content); border-color: var(--color-primary); outline: none; }
+  /* command groups: colour carries meaning */
+  .grp-setup   { --cat: var(--color-primary); }
+  .grp-control { --cat: var(--color-secondary); }
+  .grp-look    { --cat: var(--color-accent); }
+  .grp-setup > article, .grp-control > article, .grp-look > article { border-left: 3px solid var(--cat); }
+  .grp-setup .cmd, .grp-control .cmd, .grp-look .cmd { color: var(--cat); }
+  .grp-title { display: flex; align-items: center; gap: .6rem; }
+  .grp-title::before { content: ""; width: .7rem; height: .7rem; border-radius: 999px; background: var(--cat); }
+  .soft { background: color-mix(in oklab, var(--tone) 16%, transparent); color: var(--tone); border: 1px solid color-mix(in oklab, var(--tone) 40%, transparent); }
+  .tone-live { --tone: var(--color-success); } .tone-mined { --tone: var(--color-info); } .tone-partial { --tone: var(--color-warning); }
+  .tone-skipped { --tone: var(--muted); } .tone-paused { --tone: var(--color-secondary); } .tone-excluded { --tone: var(--color-error); }
+  .tone-untracked { --tone: var(--color-base-content); } .tone-ask { --tone: var(--color-warning); } .tone-scope { --tone: var(--muted); }
+  .theme-btn { position: fixed; top: 1rem; right: 1rem; z-index: 10; }
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex) > * { min-width: 0; }
+  :where(p, h1, h2, h3, h4, li, dd, td, th, .badge) { overflow-wrap: anywhere; }
+  :where(img, svg) { max-width: 100%; height: auto; }
+  body { background: var(--color-base-100); color: var(--color-base-content); }
+  code, kbd, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { background: var(--color-base-200); padding: .1em .35em; border-radius: .3em; font-size: .9em; }
+  pre { background: var(--color-base-100); border: 1px solid var(--hairline); padding: .8rem 1rem; border-radius: .55rem; overflow-x: auto; font-size: .84rem; line-height: 1.55; color: var(--color-base-content); }
+  code, pre, .cmd { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  .card-body > pre { margin-top: auto; }
+  .card code { background: var(--color-base-100); }
+  .prose-w { max-width: 72ch; }
+  section { scroll-margin-top: 1.5rem; }
+  .cmd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; }
+  svg text { font-family: ui-sans-serif, system-ui, sans-serif; }
+  .fig-line { stroke: currentColor; opacity: .55; }
+  table td, table th { vertical-align: top; }
+</style>
+</head>
+<body>
+<div class="max-w-6xl mx-auto px-5 py-10 lg:py-14">
+
+<header class="mb-10">
+  <button class="btn btn-sm theme-btn" id="theme-toggle" type="button" aria-label="Switch light or dark theme">Light / dark</button>
+  <p class="text-sm muted">Claude Code skill · installed at <code>~/.claude/skills/cortex/</code></p>
+  <h1 class="text-4xl lg:text-5xl font-bold mt-2 tracking-tight"><span class="mark">CORTEX</span> user guide</h1>
+  <p class="text-xl mt-3 prose-w muted">Layered project memory that keeps itself up to date, so you can clear a chat or open a new one without losing anything.</p>
+  <div class="alert mt-6 prose-w border-l-4" style="border-left-color: var(--color-primary)" id="answer">
+    <div>
+      <p class="font-semibold">The short version</p>
+      <p>In each project folder, run <span class="cmd">/cortex all</span> once (or <span class="cmd">/cortex start</span> if past chats don't matter). After that, every chat records itself, and built-in hooks remind Claude to log and keep track. You don't re-run anything to capture new work.</p>
+    </div>
+  </div>
+  <nav class="flex flex-wrap gap-2 mt-6 text-sm" aria-label="Sections">
+    <a class="navlink" href="#how">How it works</a>
+    <a class="navlink" href="#quickstart">Quick start</a>
+    <a class="navlink" href="#commands">Commands</a>
+    <a class="navlink" href="#ledger">The ledger</a>
+    <a class="navlink" href="#modes">Recording and pausing</a>
+    <a class="navlink" href="#faq">FAQ</a>
+    <a class="navlink" href="#files">Files and uninstall</a>
+  </nav>
+</header>
+
+<!-- ============================================================ HOW -->
+<section id="how" class="mb-14">
+  <h2 class="text-2xl font-bold mb-2">How it works</h2>
+  <p class="prose-w  mb-6">Memory lives in a <code>memory/</code> folder inside each project, split into layers. A new chat automatically loads only the small top layer, then opens deeper layers only when a task needs them. That keeps each start cheap, about 3k tokens on this project (<span class="cmd">/cortex status</span> shows yours), because the history lives in deeper layers.</p>
+
+  <figure class="card bg-base-200 p-4" id="fig-layers">
+    <svg viewBox="0 0 880 300" width="100%" role="img" aria-labelledby="layers-title">
+      <title id="layers-title">The four memory layers, from always loaded to last resort</title>
+      <g id="l0"><title>L0: always loaded</title>
+        <rect x="20" y="20" width="840" height="56" rx="10" fill="var(--color-primary)" opacity=".9" />
+        <text x="40" y="54" font-size="18" font-weight="700" fill="var(--color-primary-content)">L0 · always loaded</text>
+        <text x="300" y="54" font-size="15" fill="var(--color-primary-content)">INDEX.md (status, recording mode, map) + your preferences</text>
+      </g>
+      <g id="l1"><title>L1: current truth</title>
+        <rect x="20" y="90" width="840" height="56" rx="10" fill="var(--color-base-300)" />
+        <text x="40" y="124" font-size="18" font-weight="700" fill="currentColor">L1 · current truth</text>
+        <text x="300" y="124" font-size="15" fill="currentColor">topic files: facts, decisions, explanations (1–3 per task)</text>
+      </g>
+      <g id="l2"><title>L2: history and detail</title>
+        <rect x="20" y="160" width="840" height="56" rx="10" fill="var(--color-base-300)" opacity=".75" />
+        <text x="40" y="194" font-size="18" font-weight="700" fill="currentColor">L2 · history</text>
+        <text x="300" y="194" font-size="15" fill="currentColor">session logs (who asked what, answers, why) + repo docs and code</text>
+      </g>
+      <g id="l3"><title>L3: raw transcripts</title>
+        <rect x="20" y="230" width="840" height="56" rx="10" fill="none" stroke="currentColor" stroke-dasharray="6 5" opacity=".7" />
+        <text x="40" y="264" font-size="18" font-weight="700" fill="currentColor">L3 · raw chats</text>
+        <text x="300" y="264" font-size="15" fill="currentColor">the original transcripts, searched only as a last resort</text>
+      </g>
+    </svg>
+    <figcaption class="text-sm muted mt-2">Each layer down is more detailed and loaded less often. Subtle details go to L2, where they cost nothing until someone needs them.</figcaption>
+  </figure>
+
+  <div class="grid md:grid-cols-3 gap-4 mt-6">
+    <div class="card bg-base-200"><div class="card-body p-5">
+      <h3 class="font-semibold">It records as you work</h3>
+      <p class="text-sm muted">Each chat keeps a session log and updates the topic files right after anything worth keeping: decisions, findings, fixes, your corrections, useful explanations.</p>
+    </div></div>
+    <div class="card bg-base-200"><div class="card-body p-5">
+      <h3 class="font-semibold">It knows what it already has</h3>
+      <p class="text-sm muted">A ledger records, line by line, which parts of which chats are already in memory, so nothing is ever processed twice.</p>
+    </div></div>
+    <div class="card bg-base-200"><div class="card-body p-5">
+      <h3 class="font-semibold">Hooks keep it honest</h3>
+      <p class="text-sm muted">Two small Claude Code hooks run automatically. When a chat starts, one tells Claude which chat it is and what needs recovering. When Claude finishes a reply, the other reminds it if memory has fallen behind. Hooks never mark anything as recorded themselves.</p>
+    </div></div>
+    <div class="card bg-base-200"><div class="card-body p-5">
+      <h3 class="font-semibold">It reads smartly</h3>
+      <p class="text-sm muted">Claude picks 1–3 topic files from the index, searches session logs and reads only the matching lines, and stops after 4 files. It trusts the code first and cites where each answer came from.</p>
+    </div></div>
+    <div class="card bg-base-200"><div class="card-body p-5">
+      <h3 class="font-semibold">You stay in control</h3>
+      <p class="text-sm muted">Pause a chat, exclude one, make memory forget something, or switch recording to manual. Anything big shows you a plan first and waits for your OK.</p>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============================================================ QUICK START -->
+<section id="quickstart" class="mb-14">
+  <h2 class="text-2xl font-bold mb-4">Quick start: pick your situation</h2>
+  <div class="grid md:grid-cols-3 gap-4">
+    <div class="card bg-base-200 border border-base-300" id="qs-new"><div class="card-body p-5">
+      <span class="badge soft" style="--tone: var(--color-primary)">New project</span>
+      <h3 class="font-semibold mt-2">History doesn't matter</h3>
+      <pre>/cortex start</pre>
+      <p class="text-sm muted">It builds starter memory from the docs and code, and records from this point on. Choose <em>auto</em> recording when asked.</p>
+    </div></div>
+    <div class="card bg-base-200 border border-base-300" id="qs-existing"><div class="card-body p-5">
+      <span class="badge soft tone-scope">Existing project</span>
+      <h3 class="font-semibold mt-2">Past chats contain real work</h3>
+      <pre>/cortex all</pre>
+      <p class="text-sm muted">It shows a plan of which chats it will read, waits for your OK, then backfills them. Run it once; new chats record themselves after that.</p>
+    </div></div>
+    <div class="card bg-base-200 border border-base-300" id="qs-later"><div class="card-body p-5">
+      <span class="badge soft tone-scope">Started earlier</span>
+      <h3 class="font-semibold mt-2">Now history matters</h3>
+      <pre>/cortex all</pre>
+      <p class="text-sm muted">It skips everything already tracked (the ledger knows) and fills in only the older chats.</p>
+    </div></div>
+  </div>
+  <p class="text-sm muted mt-4 prose-w">Not sure what's tracked? <span class="cmd">/cortex status</span> shows everything and changes nothing.</p>
+</section>
+
+<!-- ============================================================ COMMANDS -->
+<section id="commands" class="mb-14">
+  <h2 class="text-2xl font-bold mb-2">Commands</h2>
+  <p class="prose-w  mb-6">Every command starts with <code>/cortex</code>. Commands marked <span class="badge badge-sm soft tone-ask">asks first</span> show you exactly what will happen and wait for your OK. Add <code>--yes</code> to skip the question.</p>
+
+  <h3 class="text-lg font-semibold mt-8 mb-3 grp-title grp-setup">Set up and capture</h3>
+  <div class="grid lg:grid-cols-2 gap-4 grp-setup">
+
+    <article class="card bg-base-200" id="cmd-start"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex start</h4><span class="badge badge-sm soft tone-scope">this chat only</span></div>
+      <p><strong>Records this chat from now on.</strong> No past chats are read.</p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li>If the project has no memory yet, it builds a starter version from the docs and code, then asks for the recording mode (auto or manual) and whether to commit <code>memory/</code> to git (default: no).</li>
+        <li>The part of this chat before the command is marked <em>skipped</em>, so <span class="cmd">/cortex all</span> won't pull it in later.</li>
+      </ul>
+      <p class="text-sm mt-1"><strong>Option:</strong> <code>--from-chat-start</code> also captures what was said earlier in this chat.</p>
+      <pre>/cortex start
+/cortex start --from-chat-start</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-all"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex all</h4><span class="badge badge-sm soft tone-ask">asks first</span><span class="badge badge-sm soft tone-scope">safe to re-run</span></div>
+      <p><strong>Backfills every past chat in this folder that isn't tracked yet.</strong></p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li>It reads the ledger, lists the gaps, and shows a plan: chats to read (with dates and the first line of each), what's excluded, what's already done.</li>
+        <li>Big histories are read by parallel helpers, at most 5 at once.</li>
+        <li>The ledger is updated after each chat, so an interrupted run continues where it stopped.</li>
+        <li>If nothing is missing, it says "nothing to do".</li>
+      </ul>
+      <pre>/cortex all
+/cortex all since 2026-10-30
+/cortex all last 3
+/cortex all exclude "the chat about my tax questions"
+/cortex all include-skipped --yes</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-save"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex save</h4><span class="badge badge-sm soft tone-scope">checkpoint</span></div>
+      <p><strong>Saves everything now:</strong> session log, topic files, changelog, index and ledger.</p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li>Chats already save themselves before you clear or switch. Use this before a risky step, or when you want certainty.</li>
+        <li>With a note, it stores just that note, even while the chat is paused.</li>
+      </ul>
+      <pre>/cortex save
+/cortex save "we chose canary at 10% because judges watch the error rate"</pre>
+    </div></article>
+
+  </div>
+
+  <h3 class="text-lg font-semibold mt-10 mb-3 grp-title grp-control">Control what's recorded</h3>
+  <div class="grid lg:grid-cols-2 gap-4 grp-control">
+
+    <article class="card bg-base-200" id="cmd-pause"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex pause</h4><span class="badge badge-sm soft tone-scope">this chat</span><span class="badge badge-sm soft tone-scope">--project: all chats</span></div>
+      <p><strong>Stops recording.</strong> Memory can still be read.</p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li><strong>Default, this chat only:</strong> new chats still record normally. The pause is stored in the ledger, so it holds even after the chat's context is compacted.</li>
+        <li><strong><code>--project</code>:</strong> no chat in this project records until you run <code>/cortex resume --project</code>. New chats remind you once that recording is off.</li>
+        <li>The paused stretch stays out of memory for good, unless you use <code>include-skipped</code>.</li>
+      </ul>
+      <pre>/cortex pause
+/cortex pause --project</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-resume"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex resume</h4></div>
+      <p><strong>Starts recording again.</strong> In this chat by default, or project-wide with <code>--project</code> (which restores the mode you had before).</p>
+      <pre>/cortex resume
+/cortex resume --project</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-exclude"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex exclude &lt;chat&gt;</h4><span class="badge badge-sm soft tone-ask">asks first</span></div>
+      <p><strong>Permanently leaves a chat out of memory.</strong> Name it by ID, date or description.</p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li>To match a description, it looks only at each chat's first message.</li>
+        <li>If the chat was already captured, it shows what came from it and offers to delete it from memory.</li>
+      </ul>
+      <pre>/cortex exclude cb4da6bb
+/cortex exclude 2026-10-25
+/cortex exclude "the chat where I tested API keys"</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-include"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex include &lt;chat&gt;</h4></div>
+      <p><strong>Undoes an exclusion</strong>, or lets skipped or paused parts back in. It marks them as gaps and offers to backfill just that chat.</p>
+      <pre>/cortex include cb4da6bb</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-forget"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex forget &lt;topic&gt;</h4><span class="badge badge-sm soft tone-ask">asks first</span></div>
+      <p><strong>Removes specific knowledge</strong>, such as an outdated decision or something you'd rather not keep.</p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li>It shows every match with its file and line, and the exact edits it proposes.</li>
+        <li>The changelog notes "forgot &lt;topic&gt;" without repeating the content.</li>
+      </ul>
+      <pre>/cortex forget "old pricing assumptions"</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-config"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex config</h4></div>
+      <p><strong>Shows or changes this project's settings.</strong> Run it with no arguments to see the current values.</p>
+      <div class="overflow-x-auto"><table class="table table-sm">
+        <tbody>
+          <tr><td><code>recording=auto|manual</code></td><td>Auto: every chat records. Manual: only chats where you run <span class="cmd">/cortex start</span>.</td></tr>
+          <tr><td><code>commit=no|yes</code></td><td>No (default) adds <code>memory/</code> to <code>.gitignore</code>.</td></tr>
+          <tr><td><code>timezone=&lt;IANA&gt;</code></td><td>For dates in memory, for example <code>America/Los_Angeles</code>.</td></tr>
+          <tr><td><code>exclude-default=…</code></td><td>Chats that <span class="cmd">/cortex all</span> always skips.</td></tr>
+        </tbody>
+      </table></div>
+    </div></article>
+
+  </div>
+
+  <h3 class="text-lg font-semibold mt-10 mb-3 grp-title grp-look">Look and check</h3>
+  <div class="grid lg:grid-cols-3 gap-4 grp-look">
+    <article class="card bg-base-200" id="cmd-status"><div class="card-body p-5">
+      <h4 class="cmd text-lg">/cortex status</h4>
+      <p class="text-sm">Changes nothing. It shows every chat with its state, coverage and gaps; the recording mode; whether this chat is paused; the last save; memory size and start-up token cost; any warnings; and a suggested next step.</p>
+    </div></article>
+    <article class="card bg-base-200" id="cmd-recall"><div class="card-body p-5">
+      <h4 class="cmd text-lg">/cortex recall &lt;question&gt;</h4>
+      <p class="text-sm">Answers from memory with sources, digging deeper layer by layer: index, topic files, session logs, then raw chats. It never looks at excluded or paused parts.</p>
+      <pre>/cortex recall why did we pick SPECTRUM?</pre>
+    </div></article>
+    <article class="card bg-base-200" id="cmd-audit"><div class="card-body p-5">
+      <h4 class="cmd text-lg">/cortex audit</h4>
+      <p class="text-sm">A health check. Does the index match the files? Are files within their size limits? Are there duplicates, facts that no longer match the code, or gaps in coverage? It proposes fixes and applies them on your OK. Worth running about every 10 sessions.</p>
+    </div></article>
+  </div>
+  <p class="text-sm muted mt-4"><span class="cmd">/cortex help</span> lists all commands, with a 3-line status.</p>
+</section>
+
+<!-- ============================================================ LEDGER -->
+<section id="ledger" class="mb-14">
+  <h2 class="text-2xl font-bold mb-2">The ledger: why nothing is processed twice</h2>
+  <p class="prose-w  mb-6"><code>memory/LEDGER.md</code> has one row per chat, recording which line ranges are already handled. <span class="cmd">/cortex all</span> reads only the parts that aren't covered. You can open the file and read or edit it like any table.</p>
+
+  <figure class="card bg-base-200 p-4 mb-6" id="fig-ranges">
+    <svg viewBox="0 0 880 210" width="100%" role="img" aria-labelledby="ranges-title">
+      <title id="ranges-title">One chat's lines, split into ledger ranges</title>
+      <text x="20" y="28" font-size="15" font-weight="700" fill="currentColor">One chat, start to finish (transcript lines)</text>
+      <g id="r-skipped"><title>skipped: before /cortex start</title>
+        <rect x="20" y="50" width="200" height="46" rx="6" fill="var(--color-base-300)" />
+        <text x="120" y="79" text-anchor="middle" font-size="14" fill="currentColor">skipped 1–340</text></g>
+      <g id="r-live"><title>live: recorded as the chat runs</title>
+        <rect x="224" y="50" width="250" height="46" rx="6" fill="var(--color-success)" opacity=".9" />
+        <text x="349" y="79" text-anchor="middle" font-size="14" fill="var(--color-success-content)">live 341–620</text></g>
+      <g id="r-paused"><title>paused: /cortex pause ... resume</title>
+        <rect x="478" y="50" width="120" height="46" rx="6" fill="none" stroke="var(--color-secondary)" stroke-width="1.5" stroke-dasharray="5 4" />
+        <text x="538" y="79" text-anchor="middle" font-size="14" fill="var(--color-secondary)">paused 621–700</text></g>
+      <g id="r-live2"><title>live again after resume</title>
+        <rect x="602" y="50" width="258" height="46" rx="6" fill="var(--color-success)" opacity=".9" />
+        <text x="731" y="79" text-anchor="middle" font-size="14" fill="var(--color-success-content)">live 701–980</text></g>
+      <line class="fig-line" x1="222" y1="110" x2="222" y2="135" />
+      <text x="222" y="152" text-anchor="middle" font-size="13" fill="currentColor">/cortex start</text>
+      <line class="fig-line" x1="476" y1="110" x2="476" y2="135" />
+      <text x="476" y="152" text-anchor="middle" font-size="13" fill="currentColor">/cortex pause</text>
+      <line class="fig-line" x1="600" y1="110" x2="600" y2="135" />
+      <text x="600" y="152" text-anchor="middle" font-size="13" fill="currentColor">/cortex resume</text>
+      <text x="20" y="192" font-size="13" fill="currentColor" opacity=".8">/cortex all reads none of this chat: every line is either covered (live) or deliberately left out (skipped, paused).</text>
+    </svg>
+  </figure>
+
+  <div class="overflow-x-auto">
+    <table class="table table-sm bg-base-200 rounded-box">
+      <thead><tr><th>State</th><th>Meaning</th><th>Read by <span class="cmd">/cortex all</span>?</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge soft tone-live">live</span></td><td>Recorded as the chat runs. The end moves forward each time the chat logs something.</td><td>No: already covered</td></tr>
+        <tr><td><span class="badge soft tone-mined">mined</span></td><td>Backfilled from the transcript.</td><td>No: already covered</td></tr>
+        <tr><td><span class="badge soft tone-partial">partial</span></td><td>Some ranges are still uncovered.</td><td>Only the uncovered ranges</td></tr>
+        <tr><td><span class="badge soft tone-skipped">skipped</span></td><td>Left out on purpose, e.g. the part before <span class="cmd">/cortex start</span>.</td><td>Only with <code>include-skipped</code></td></tr>
+        <tr><td><span class="badge soft tone-paused">paused</span></td><td>Between <span class="cmd">/cortex pause</span> and <span class="cmd">resume</span>.</td><td>Only with <code>include-skipped</code></td></tr>
+        <tr><td><span class="badge soft tone-excluded">excluded</span></td><td>Never read, quoted or logged.</td><td>Never, until <span class="cmd">/cortex include</span></td></tr>
+        <tr><td><span class="badge soft tone-untracked">untracked</span></td><td>Not processed yet.</td><td>Yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ MODES -->
+<section id="modes" class="mb-14">
+  <h2 class="text-2xl font-bold mb-4">Recording and pausing at a glance</h2>
+  <div class="overflow-x-auto">
+    <table class="table bg-base-200 rounded-box">
+      <thead><tr><th>Setting</th><th>New chats</th><th>This chat</th><th>Reading memory</th></tr></thead>
+      <tbody>
+        <tr><td><strong>auto</strong> (recommended)</td><td>Record automatically</td><td>Records</td><td>Always</td></tr>
+        <tr><td><strong>manual</strong></td><td>Record only after <span class="cmd">/cortex start</span></td><td>Records if started</td><td>Always</td></tr>
+        <tr><td><span class="cmd">/cortex pause</span></td><td>Unaffected</td><td>Stops until <span class="cmd">resume</span> or the chat ends</td><td>Always</td></tr>
+        <tr><td><span class="cmd">/cortex pause --project</span></td><td>Don't record (with a one-line reminder)</td><td>Stops</td><td>Always</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-sm muted mt-3 prose-w">If a chat ends suddenly (terminal closed, no save), the next chat notices the gap at start-up and fills it in. Paused and excluded parts stay out.</p>
+</section>
+
+<!-- ============================================================ FAQ -->
+<section id="faq" class="mb-14">
+  <h2 class="text-2xl font-bold mb-4">FAQ</h2>
+  <div class="join join-vertical w-full">
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-rerun">
+      <input type="checkbox" checked>
+      <div class="collapse-title font-semibold">Do I have to re-run <span class="cmd">/cortex all</span> for new chats?</div>
+      <div class="collapse-content text-sm "><p>No. It's a one-time backfill. With auto recording, new chats record themselves. Re-run it only if chats happened in manual mode without <span class="cmd">start</span>, or after you include something that was excluded or skipped. Re-running is cheap: it only handles gaps.</p></div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-hooks">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">What do the hooks do? Do they turn CORTEX on everywhere?</div>
+      <div class="collapse-content text-sm"><p>They're two automatic reminders. When a chat starts, Claude is told which chat it is and whether anything from a recent chat is missing. After each reply, Claude gets a nudge if it hasn't saved for a while. They <strong>never save anything themselves</strong>, and they only act in folders where CORTEX is set up (<code>memory/</code> exists). Everywhere else they do nothing. CORTEX only turns on in a project when you run <span class="cmd">/cortex start</span> or <span class="cmd">/cortex all</span> there.</p></div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-recover">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">Does recovery save chats that weren't recording?</div>
+      <div class="collapse-content text-sm"><p>No. Recovery only finishes chats that <em>were</em> recording but closed before saving their last part. Chats that never recorded (before CORTEX, in manual mode, or while paused) are left alone. The start hook just mentions them, and nothing from them is saved unless you run <span class="cmd">/cortex all</span>, which shows a plan and asks first.</p></div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-start-exclude">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">Does <span class="cmd">/cortex start</span> exclude my earlier chats?</div>
+      <div class="collapse-content text-sm"><p>No. <strong>Other earlier chats</strong> stay <em>untracked</em>: not saved and not excluded, so <span class="cmd">/cortex all</span> can still save them later. <strong>The earlier part of the same chat</strong> (before you typed <span class="cmd">/cortex start</span>) is marked <em>skipped</em>; use <code>--from-chat-start</code> to include it from the beginning. A chat is only excluded when you run <span class="cmd">/cortex exclude</span>.</p></div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-include-skipped">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">When do I need <code>include-skipped</code>?</div>
+      <div class="collapse-content text-sm">
+        <div class="overflow-x-auto"><table class="table table-sm">
+          <thead><tr><th>What</th><th>Saved by plain <span class="cmd">/cortex all</span>?</th></tr></thead>
+          <tbody>
+            <tr><td>Other earlier chats that never recorded (untracked)</td><td><strong>Yes</strong>; no flag needed</td></tr>
+            <tr><td>The part of a chat before <span class="cmd">/cortex start</span> (skipped)</td><td>Only with <code>include-skipped</code></td></tr>
+            <tr><td>Parts you paused</td><td>Only with <code>include-skipped</code></td></tr>
+            <tr><td>Excluded chats</td><td>Never, until <span class="cmd">/cortex include</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-pause">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">Does <span class="cmd">/cortex pause</span> carry over to new chats?</div>
+      <div class="collapse-content text-sm "><p>No. It applies only to the chat you're in. Use <code>--project</code> to pause the whole project.</p></div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-folders">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">Is memory shared between projects?</div>
+      <div class="collapse-content text-sm "><p>No. Each project folder has its own <code>memory/</code>, and you set it up once per folder. The skill itself is installed once, for all projects.</p></div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-git">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">Will my memory end up in git?</div>
+      <div class="collapse-content text-sm "><p>Not by default: <code>memory/</code> is added to <code>.gitignore</code>. Session logs can quote your messages, so commit only if you want teammates to see them (<code>/cortex config commit=yes</code>). Teammates who clone without it get an offer to set up their own.</p></div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-tokens">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">Does it cost a lot of tokens?</div>
+      <div class="collapse-content text-sm "><p>Very little. Each chat starts with about 3k tokens of memory (the CORTEX rules, the index and your preferences). Each memory update is a small edit, usually 50–300 tokens. Backfilling a large history is a one-time cost; this project's ~25 MB of chats took about 4 helpers and 10 minutes.</p></div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-what">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">What does it store, and what does it skip?</div>
+      <div class="collapse-content text-sm "><p>The test is "would a future chat be better informed for having this?": decisions and reasons, your requirements and corrections, findings, explanations, numbers and caveats, ideas, bugs and fixes, status. Subtle details go to the session logs. It drops chit-chat, retries and duplicates, and never stores secrets, keys, passwords, or anyone's email or phone number.</p></div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-stale">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">What if memory and the code disagree?</div>
+      <div class="collapse-content text-sm "><p>On what the system <em>does</em>, the code wins. On what you <em>want</em>, your latest instruction wins. The stale memory is corrected on the spot, and unconfirmed facts are labelled "not yet verified".</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ FILES -->
+<section id="files" class="mb-10">
+  <h2 class="text-2xl font-bold mb-4">Files, and how to remove it</h2>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="card bg-base-200"><div class="card-body p-5">
+      <h3 class="font-semibold">Installed once (all projects)</h3>
+      <pre>~/.claude/skills/cortex/
+  SKILL.md                 commands
+  reference/build.md       build and backfill procedure
+  reference/claude-block.md  rules written into CLAUDE.md
+  reference/*-template.md  index, protocol, ledger templates
+  scripts/ledger_scan.py   coverage report
+  scripts/extract_transcript.py  transcript reader
+  scripts/cortex_hook.py   start and finish hooks
+  guide/cortex-user-guide.html   this guide</pre>
+    </div></div>
+    <div class="card bg-base-200"><div class="card-body p-5">
+      <h3 class="font-semibold">Per project</h3>
+      <pre>CLAUDE.md                (a CORTEX block, between markers)
+memory/INDEX.md          L0: status, recording mode, map
+memory/team/user-preferences.md
+memory/&lt;topic&gt;/*.md      L1 topic files
+memory/sessions/*.md     L2 logs, named by chat id
+memory/_templates/       copied, not read
+memory/LEDGER.md         what's tracked
+memory/PROTOCOL.md       config, templates, audit
+memory/log/changelog.md</pre>
+    </div></div>
+  </div>
+  <div class="alert mt-4 text-sm">
+    <div><p><strong>To remove CORTEX from a project:</strong> delete the block between <code>&lt;!-- CORTEX:BEGIN</code> and <code>&lt;!-- CORTEX:END --&gt;</code> in <code>CLAUDE.md</code>, then delete <code>memory/</code> if you want the memory gone. <strong>To uninstall the skill:</strong> remove the two <code>cortex_hook.py</code> entries from <code>hooks</code> in <code>~/.claude/settings.json</code> (a backup was made when they were added), then delete <code>~/.claude/skills/cortex/</code>.</p>
+    <p class="mt-1 muted">No skill installed somewhere? <code>CORTEX_master_prompt.md</code> is a paste-anywhere fallback generated from the same files.</p></div>
+  </div>
+  <p class="text-xs opacity-60 mt-8">Not covered here: the internal build procedure (<code>reference/build.md</code>) and the exact rules each chat follows (<code>reference/claude-block.md</code>). Read those to change how CORTEX behaves.</p>
+</section>
+
+</div>
+<script>
+  document.getElementById('theme-toggle').addEventListener('click', function () {
+    var next = document.documentElement.dataset.theme === 'cortex-dark' ? 'cortex-light' : 'cortex-dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('cortex-guide-theme', next);
+  });
+</script>
+</body>
+</html>
