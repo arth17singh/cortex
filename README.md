@@ -63,6 +63,14 @@ You can see CORTEX working, without it getting in your way.
 ⟲ CORTEX synced  ·  L1 engineering/auth.md +6 · L2 2026-11-01_a1b2c3d4-auth.md +14  ·  ledger → 388
 ```
 
+**After every answer**, a gauge of how much of the chat's context is CORTEX memory:
+
+```
+◈ memory in context  ▕█░░░░░░░░░▏ 6%  3.7k of 61.9k tok  ·  L0 2.3k · L1 1 file 1.2k · L2 1 log 224
+```
+
+`L0` is what CORTEX always loads: the index, your preferences and the `CLAUDE.md` block. `L1` and `L2` are memory files Claude opened with the Read tool during this chat. The total comes from the real context size in the transcript. Token counts for files are estimated at about 4 bytes per token. Files read through shell commands (`cat`, `grep`) aren't counted, and the count resets after `/clear` or compaction, when earlier reads leave the context.
+
 **While Claude works**, one-line `⟦CORTEX⟧` entries for reads, writes, recoveries and checkpoints (written by Claude under the rules in the `CLAUDE.md` block, and only for actions it actually performed):
 
 ```
