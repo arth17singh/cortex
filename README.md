@@ -49,17 +49,23 @@ A crashed, closed or abandoned chat therefore leaves a recoverable trace instead
 - **Control:** pause per chat or per project, exclude a chat for good, or `forget` a topic. Forgetting purges every match and records the label, never the content, so the topic is not re-learned.
 
 ### 5. Live telemetry
-You can see CORTEX working. The `SessionStart` hook prints a status panel in your terminal at the top of every chat, and Claude prints one-line `⟦CORTEX⟧` entries as it reads and writes memory:
+You can see CORTEX working. At the top of every chat the `SessionStart` hook prints a briefing built from your memory files, and Claude prints one-line `⟦CORTEX⟧` entries as it reads and writes memory.
+
+- **now:** the "Where we are" bullets from the index.
+- **next:** the open threads from your most recent session log, so you can pick up where you left off.
+- **ready:** what was loaded, and what stays available on demand.
+- **watch:** only when something needs attention: unlogged chat tails being recovered, L1 files that haven't been updated for 30 days or more, and facts still marked unverified.
+
 
 ```
-╭─ CORTEX ▸ online ──────────────────────────────────────────────────────╮
-│ ● auto recording  ·  chat a1b2c3d4                                     │
-│ ▸ this chat  ███████░░░  340 of 500 lines logged                       │
-│ ▸ project    940 lines recorded · 200 pending · 400 skipped on purpose │
-│ ▸ memory     L0 2.1k tok  ·  L1 4 topic files  ·  L2 6 session logs    │
-│ ▸ last write 2h ago (engineering/auth.md)                              │
-│ ▸ recovery   1 unlogged tail found, recovering first                   │
-╰────────────────────────────────────────────────────────────────────────╯
+╭─ CORTEX ▸ auto · a1b2c3d4 ──────────────────────────────────────────────╮
+│ now     ▸ Auth moved to short-lived tokens, rollout to staging done     │
+│         ▸ Billing webhooks rewritten, retries still flaky               │
+│ next    ◦ Add idempotency keys to the webhook handler                   │
+│         ◦ Load-test staging before the Friday cut                       │
+│ ready   2.1k tok loaded · 12 topics and 31 past chats on demand         │
+│ watch   ⚠ engineering/deploy.md not updated in 48d · 2 unverified facts │
+╰─────────────────────────────────────────────────────────────────────────╯
 
 ⟦CORTEX⟧ recall ▸ L1 engineering/auth.md · 118 lines · trust: sourced L1
 ⟦CORTEX⟧ commit ▸ L2 2026-11-01_a1b2c3d4-auth.md (L341-388) + L1 engineering/auth.md · ledger live → 388

@@ -86,11 +86,12 @@ def memory_stats(root):
     return l0 // 4, len(l1), len(list((mem / 'sessions').glob('*.md')))
 
 
-def panel(title, rows):
+def panel(title, rows, cap=78):
+    rows = [r if len(r) <= cap else r[:cap - 1] + '…' for r in rows]
     width = max(len(title) + 4, *(len(r) for r in rows)) + 2
-    top = f'\u256d\u2500 {title} ' + '\u2500' * (width - len(title) - 3) + '\u256e'
-    body = [f'\u2502 {r.ljust(width - 1)}\u2502' for r in rows]
-    return '\n'.join([top, *body, '\u2570' + '\u2500' * width + '\u256f'])
+    top = f'╭─ {title} ' + '─' * (width - len(title) - 3) + '╮'
+    body = [f'│ {r.ljust(width - 1)}│' for r in rows]
+    return '\n'.join([top, *body, '╰' + '─' * width + '╯'])
 
 
 STATE_DIR = Path(tempfile.gettempdir()) / 'cortex-hook'
@@ -160,26 +161,61 @@ def freshest(root):
     return age(time.time() - f.stat().st_mtime), f.relative_to(root / 'memory').as_posix()
 
 
-def bar(done, total, width=10):
-    filled = round(width * done / total) if total else 0
-    return '█' * filled + '░' * (width - filled)
+def clean(text, n=56):
+    text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)                 # [label](link) -> label
+    text = re.sub(r'\s*\((?:[0-9a-f]{8} L[\d-]+|code: [^)]*)\)', '', text)  # source tags
+    text = re.sub(r'[`*]', '', text).strip(' .')
+    return text if len(text) <= n else text[:n - 1].rstrip() + '…'
 
 
-def project_counts(scan, sid, n_now, covered_to):
-    """(recorded, pending, skipped) transcript lines across this project's chats."""
-    rec = pend = skip = 0
-    for c in scan.get('chats', []):
-        if c.get('state') == 'excluded':
+def section(path, heading):
+    """Bullet text under '## <heading>' in a markdown file; placeholders like <...> are ignored."""
+    out, on = [], False
+    for line in path.read_text(encoding='utf-8', errors='replace').splitlines():
+        if line.startswith('## '):
+            on = heading.lower() in line.lower()
+        elif on and line.lstrip().startswith(('- ', '* ')):
+            t = line.lstrip()[2:].strip()
+            if t and not t.startswith('<'):
+                out.append(t)
+    return out
+
+
+def where_we_are(root):
+    idx = root / 'memory' / 'INDEX.md'
+    return section(idx, 'where we are') if idx.is_file() else []
+
+
+def next_steps(root, sid):
+    logs = [f for f in (root / 'memory' / 'sessions').glob('*.md') if f.name != 'README.md']
+    logs.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+    others = [f for f in logs if sid[:8] not in f.name]
+    for f in (others or logs):
+        steps = section(f, 'open threads')
+        if steps:
+            return steps, f
+    return [], None
+
+
+def l1_health(root, days=30):
+    """(stalest (name, age_days) or None, count of 'reported, not yet verified' bullets)."""
+    stale, unverified, today = None, 0, time.time()
+    skip = {'sessions', 'log', '_templates', 'team'}
+    for d in (root / 'memory').iterdir():
+        if not d.is_dir() or d.name in skip or d.name.startswith('.'):
             continue
-        total = c.get('lines', 0)
-        for kind, a, b in ranges(c.get('ranges') or ''):
-            span = max(0, (b if b is not None else total) - a + 1)
-            if kind in ('live', 'mined'):
-                rec += span
-            elif kind == 'skipped':
-                skip += span
-        pend += sum(y - x + 1 for x, y in c.get('backfill', []))
-    return rec, pend, skip
+        for f in d.glob('*.md'):
+            text = f.read_text(encoding='utf-8', errors='replace')
+            unverified += len(section(f, 'not yet verified'))
+            m = re.search(r'Last updated:\s*(\d{4}-\d{2}-\d{2})', '\n'.join(text.splitlines()[:8]))
+            if m:
+                try:
+                    age_d = int((today - time.mktime(time.strptime(m.group(1), '%Y-%m-%d'))) // 86400)
+                except ValueError:
+                    continue
+                if age_d >= days and (stale is None or age_d > stale[1]):
+                    stale = (f'{d.name}/{f.name}', age_d)
+    return stale, unverified
 
 
 def session_start(data, root):
@@ -217,30 +253,30 @@ def session_start(data, root):
         print(context)
         return
     l0, l1, l2 = memory_stats(root)
-    rows = [f"● {mode} recording  ·  chat {sid[:8]}"]
-    n = count_lines(tp) if tp and os.path.isfile(tp) else 0
-    live = [r for r in ranges(rtext) if r[0] in ('live', 'mined')]
-    covered_to = max([b or a for k, a, b in live], default=0)
-    if live and n:
-        done = min(covered_to, n)
-        rows.append(f"▸ this chat  {bar(done, n)}  {done} of {n} lines logged")
-    elif state in ('skipped', 'excluded'):
-        rows.append(f"▸ this chat  not recorded ({state})")
+    rows = []
+    now = where_we_are(root)
+    if now:
+        rows += [('now     ▸ ' if i == 0 else '        ▸ ') + clean(x, 62) for i, x in enumerate(now[:2])]
     else:
-        rows.append('▸ this chat  no ledger row yet, /cortex start to record')
-    if scan:
-        rec, pend, skip = project_counts(scan, sid, n, covered_to)
-        rows.append(f"▸ project    {rec:,} lines recorded · {pend:,} pending · {skip:,} skipped on purpose")
-    rows.append(f"▸ memory     L0 {l0 / 1000:.1f}k tok  ·  L1 {l1} topic file{'s' * (l1 != 1)}  ·  "
-                f"L2 {l2} session log{'s' * (l2 != 1)}")
-    fresh = freshest(root)
-    if fresh:
-        rows.append(f"▸ last write {fresh[0]} ({fresh[1]})")
+        rows.append('now     memory is new, nothing recorded yet')
+    steps, src = next_steps(root, sid)
+    rows += [('next    ◦ ' if i == 0 else '        ◦ ') + clean(x, 62) for i, x in enumerate(steps[:3])]
+    rows.append(f"ready   {l0 / 1000:.1f}k tok loaded · {l1} topic{'s' * (l1 != 1)} and "
+                f"{l2} past chat{'s' * (l2 != 1)} on demand")
+    watch = []
     if gaps:
-        rows.append(f"▸ recovery   {len(gaps)} unlogged tail{'s' * (len(gaps) != 1)} found, recovering first")
+        watch.append(f"{len(gaps)} unlogged tail{'s' * (len(gaps) != 1)} (recovering)")
+    stale, unverified = l1_health(root)
+    if stale:
+        watch.append(f"{stale[0]} not updated in {stale[1]}d")
+    if unverified:
+        watch.append(f"{unverified} unverified fact{'s' * (unverified != 1)}")
+    if watch:
+        rows.append('watch   ⚠ ' + ' · '.join(watch))
     if data.get('source') == 'compact':
-        rows.append('▸ resumed after compaction, re-attaching session log')
-    msg = panel('CORTEX ▸ online', rows)
+        rows.append("resumed after compaction, re-attaching this chat's session log")
+    title = f"CORTEX ▸ {mode} · {sid[:8]}" if not mode.startswith('paused') else f"CORTEX ▸ {mode}"
+    msg = panel(title, rows)
     print(json.dumps({'systemMessage': msg,
                       'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': context}}))
 
