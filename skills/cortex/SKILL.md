@@ -42,7 +42,7 @@ List the subcommands with one-line descriptions and two examples. If memory exis
 ### upgrade
 Bring this project to the current rules and layout. Show what will change and wait for an OK.
 - **Pre-v5 project** (no `memory/RULES.md`): follow `${CLAUDE_SKILL_DIR}/reference/build.md` Step 0, "Upgrading from v4 (or older) to v5", then Steps 6–8.
-- **v5 project whose `RULES.md` differs from the skill's copy:** show `diff memory/RULES.md ${CLAUDE_SKILL_DIR}/reference/rules.md`, then on OK copy the skill's version over it.
+- **v5 project whose `RULES.md` differs from the skill's copy:** show `diff memory/RULES.md ${CLAUDE_SKILL_DIR}/reference/rules.md`, then on OK back up `memory/RULES.md` and `memory/PROTOCOL.md` to `memory/.backups/<YYYY-MM-DD-HHMM>-upgrade/`, copy the skill's `rules.md` over `RULES.md`, and re-render `PROTOCOL.md` and `_templates/` from `reference/protocol-template.md`, keeping `PROTOCOL.md`'s config values. Memory content (index, topic files, logs) is not touched; if the new caps call for consolidation, the next chat's start-up line will say so.
 - Finish by telling the user to start a new chat, since this one still has the old rules in context.
 
 ### start [--from-chat-start]
