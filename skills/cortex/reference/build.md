@@ -37,7 +37,8 @@
     5. **Carry over project lines:** diff the old block against `reference/claude-block-v4.md` (older blocks may lack its §5 Telemetry); any line that isn't template text (e.g. the topic-routing line) is project-specific. Routing goes into the map; anything else moves to the project's own section of `CLAUDE.md`, outside the markers.
     6. **Rewrite `PROTOCOL.md` and `_templates/`** from the v5 template (`reference/protocol-template.md`, sections 1–3), keeping `PROTOCOL.md`'s config values (commit setting, timezone, exclusions, forgotten topics).
     7. **Swap the block last:** replace the old block with the v5 stub (`reference/claude-block.md`). Leave `AGENTS.md` and other tools' files alone, and tell the user they still hold the old inline rules.
-    8. **Verify:** run `/cortex status`; it must show the rules as current and the memory budget. Then tell the user to start a new chat, since this one still has the old rules in context.
+    8. **Baseline the self-test:** append `- <YYYY-MM-DD HH:MM> · baseline (upgrade) · logs: <n>` to `memory/log/selftest.md` (create it with a `# Self-test history` heading), so the first automatic self-test waits for 5 new or changed session logs instead of running straight after the upgrade.
+    9. **Verify:** run `/cortex status`; it must show the rules as current and the memory budget. Then tell the user to start a new chat, since this one still has the old rules in context.
   - **Upgrading from v3 or older:** first apply these, then the v5 upgrade above:
     1. Rename session logs from `_sN-` to `_<id8>-`, using the ledger's chat-to-log mapping.
     2. Create `_templates/`.
