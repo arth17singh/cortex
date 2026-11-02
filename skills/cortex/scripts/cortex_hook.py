@@ -9,12 +9,13 @@ Stop: if this chat is recording and its ledger `live` end is far behind the tran
   ledger. It never edits the ledger itself: only Claude may mark lines as covered, after it has
   actually logged them. Nudges are rate-limited per chat.
 
-Both events also emit a `systemMessage`, a compact telemetry panel the user sees in their terminal
+Both events also emit a `systemMessage` the user sees in their terminal: a status panel at SessionStart,
+and at Stop a 'synced' pulse (what changed in memory this turn, from file snapshots) plus any checkpoint nudge
 (put `Logs: off` anywhere in memory/INDEX.md, or set CORTEX_QUIET=1, to silence it).
 
 It is silent and exits 0 whenever the project has no CORTEX memory or anything goes wrong.
 """
-import json, os, re, subprocess, sys, tempfile
+import json, os, re, subprocess, sys, tempfile, time
 from pathlib import Path
 
 NUDGE_EVERY = 150      # transcript lines between nudges
@@ -92,21 +93,106 @@ def panel(title, rows):
     return '\n'.join([top, *body, '\u2570' + '\u2500' * width + '\u256f'])
 
 
+STATE_DIR = Path(tempfile.gettempdir()) / 'cortex-hook'
+LAYER_SKIP = ('.migrated', '_templates')
+
+
+def snapshot(root):
+    """{relative path: line count} for every memory file; the basis for the live 'synced' pulse."""
+    snap = {}
+    for f in (root / 'memory').rglob('*.md'):
+        rel = f.relative_to(root / 'memory').as_posix()
+        if not any(x in rel for x in LAYER_SKIP):
+            snap[rel] = count_lines(f)
+    return snap
+
+
+def layer(rel):
+    if rel == 'LEDGER.md':
+        return 'ledger'
+    if rel.startswith('sessions/'):
+        return 'L2'
+    if rel.startswith('log/') or rel == 'CHANGELOG.md':
+        return 'log'
+    if rel == 'INDEX.md' or rel.startswith('team/'):
+        return 'L0'
+    return 'L1'
+
+
+def short_name(rel):
+    name = rel.rsplit('/', 1)[-1]
+    if rel.startswith('sessions/') and len(name) > 34:
+        name = name[:16] + '…' + name[-14:]
+    return name if rel.startswith('sessions/') else rel
+
+
+def pulse(old, new):
+    """One-line summary of what changed in memory since the last snapshot, or ''."""
+    parts = []
+    for rel in sorted(set(old) | set(new)):
+        o, n = old.get(rel), new.get(rel)
+        if o == n or rel == 'LEDGER.md':
+            continue
+        if o is None:
+            parts.append(f"{layer(rel)} {short_name(rel)} new ({n} lines)")
+        elif n is None:
+            parts.append(f"{layer(rel)} {short_name(rel)} removed")
+        else:
+            parts.append(f"{layer(rel)} {short_name(rel)} {n - o:+d}")
+    if len(parts) > 4:
+        parts = parts[:4] + [f"+{len(parts) - 4} more"]
+    return ' · '.join(parts)
+
+
+def age(seconds):
+    for unit, size in (('d', 86400), ('h', 3600), ('m', 60)):
+        if seconds >= size:
+            return f"{int(seconds // size)}{unit} ago"
+    return 'just now'
+
+
+def freshest(root):
+    files = [f for f in (root / 'memory').rglob('*.md')
+             if f.name != 'LEDGER.md' and not any(x in f.as_posix() for x in LAYER_SKIP)]
+    if not files:
+        return None
+    f = max(files, key=lambda x: x.stat().st_mtime)
+    return age(time.time() - f.stat().st_mtime), f.relative_to(root / 'memory').as_posix()
+
+
+def bar(done, total, width=10):
+    filled = round(width * done / total) if total else 0
+    return '█' * filled + '░' * (width - filled)
+
+
+def project_counts(scan, sid, n_now, covered_to):
+    """(recorded, pending, skipped) transcript lines across this project's chats."""
+    rec = pend = skip = 0
+    for c in scan.get('chats', []):
+        if c.get('state') == 'excluded':
+            continue
+        total = c.get('lines', 0)
+        for kind, a, b in ranges(c.get('ranges') or ''):
+            span = max(0, (b if b is not None else total) - a + 1)
+            if kind in ('live', 'mined'):
+                rec += span
+            elif kind == 'skipped':
+                skip += span
+        pend += sum(y - x + 1 for x, y in c.get('backfill', []))
+    return rec, pend, skip
+
+
 def session_start(data, root):
     sid, tp = data.get('session_id', ''), data.get('transcript_path', '')
     mode = recording_mode(root)
     state, rtext = ledger_row(root, sid)
-    gaps, covered_pct = [], None
+    scan, gaps = {}, []
     lines = [f"CORTEX: this chat is {sid[:8]} (session {sid}); transcript {tp}. Recording: {mode}."]
     lines.append(f"This chat's ledger row: {state} {rtext}." if state else "This chat has no ledger row yet.")
     try:
         out = subprocess.run([sys.executable, str(HERE / 'ledger_scan.py'), str(root), '--current', sid, '--json'],
                              capture_output=True, text=True, timeout=20)
         scan = json.loads(out.stdout)
-        chats = [c for c in scan.get('chats', []) if c.get('state') != 'excluded']
-        total = sum(c.get('lines', 0) for c in chats)
-        open_lines = sum(b - a + 1 for c in chats for a, b in c.get('backfill', []))
-        covered_pct = round(100 * (total - open_lines) / total) if total else None
         todo = [f"{c['short']} {', '.join(f'{a}-{b}' for a, b in c['backfill'])}" for c in scan.get('chats', [])
                 if c.get('backfill') and 'live' in (c.get('ranges') or '')]
         untracked = [c['short'] for c in scan.get('chats', []) if c.get('state') == 'untracked' and c.get('backfill')]
@@ -122,50 +208,64 @@ def session_start(data, root):
     if data.get('source') == 'compact':
         lines.append("After compaction: keep appending to this chat's existing session log (listed in its ledger row).")
     context = ' '.join(lines)
+    try:  # seed the snapshot so the first Stop pulse reports only this chat's changes
+        STATE_DIR.mkdir(exist_ok=True)
+        (STATE_DIR / f'{sid}.snap.json').write_text(json.dumps(snapshot(root)))
+    except Exception:
+        pass
     if not logs_enabled(root):
         print(context)
         return
     l0, l1, l2 = memory_stats(root)
-    ledger = rtext if state else 'no row yet'
-    rows = [f"\u25cf recording {mode}  \u00b7  chat {sid[:8]}",
-            f"\u25b8 ledger    {ledger}",
-            f"\u25b8 memory    L0 {l0 / 1000:.1f}k tok  \u00b7  L1 {l1} topic file{'s' * (l1 != 1)}  \u00b7  L2 {l2} session log{'s' * (l2 != 1)}"]
-    if covered_pct is not None:
-        bar = '\u2588' * (covered_pct // 10) + '\u2591' * (10 - covered_pct // 10)
-        rows.append(f"\u25b8 coverage  {bar} {covered_pct}%  \u00b7  {len(gaps)} gap{'s' * (len(gaps) != 1)} to recover")
+    rows = [f"● {mode} recording  ·  chat {sid[:8]}"]
+    n = count_lines(tp) if tp and os.path.isfile(tp) else 0
+    live = [r for r in ranges(rtext) if r[0] in ('live', 'mined')]
+    covered_to = max([b or a for k, a, b in live], default=0)
+    if live and n:
+        done = min(covered_to, n)
+        rows.append(f"▸ this chat  {bar(done, n)}  {done} of {n} lines logged")
+    elif state in ('skipped', 'excluded'):
+        rows.append(f"▸ this chat  not recorded ({state})")
+    else:
+        rows.append('▸ this chat  no ledger row yet, /cortex start to record')
+    if scan:
+        rec, pend, skip = project_counts(scan, sid, n, covered_to)
+        rows.append(f"▸ project    {rec:,} lines recorded · {pend:,} pending · {skip:,} skipped on purpose")
+    rows.append(f"▸ memory     L0 {l0 / 1000:.1f}k tok  ·  L1 {l1} topic file{'s' * (l1 != 1)}  ·  "
+                f"L2 {l2} session log{'s' * (l2 != 1)}")
+    fresh = freshest(root)
+    if fresh:
+        rows.append(f"▸ last write {fresh[0]} ({fresh[1]})")
+    if gaps:
+        rows.append(f"▸ recovery   {len(gaps)} unlogged tail{'s' * (len(gaps) != 1)} found, recovering first")
     if data.get('source') == 'compact':
-        rows.append('\u25b8 resumed after compaction, re-attaching session log')
-    msg = panel('CORTEX \u25b8 online', rows)
+        rows.append('▸ resumed after compaction, re-attaching session log')
+    msg = panel('CORTEX ▸ online', rows)
     print(json.dumps({'systemMessage': msg,
                       'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': context}}))
 
 
-def stop(data, root):
-    if data.get('stop_hook_active'):
-        return
-    sid, tp = data.get('session_id', ''), data.get('transcript_path', '')
-    if not sid or not tp or not os.path.isfile(tp):
-        return
+def nudge(root, sid, tp):
+    """Return the checkpoint nudge text and its short on-screen form, or (None, None)."""
     mode = recording_mode(root).lower()
     if mode.startswith('paused'):
-        return
+        return None, None
     state, rtext = ledger_row(root, sid)
     rs = ranges(rtext)
     if state == 'excluded' or any(k == 'paused' and b is None for k, a, b in rs):
-        return
+        return None, None
     live = [r for r in rs if r[0] in ('live', 'mined')]
     if mode.startswith('manual') and not any(k == 'live' for k, a, b in rs):
-        return
+        return None, None
     n = count_lines(tp)
     covered_to = max([b or a for k, a, b in live], default=0)
     if not live and n < MIN_UNTRACKED:
-        return
-    state_dir = Path(tempfile.gettempdir()) / 'cortex-hook'
-    state_dir.mkdir(exist_ok=True)
-    marker = state_dir / f'{sid}.json'
+        return None, None
+    STATE_DIR.mkdir(exist_ok=True)
+    marker = STATE_DIR / f'{sid}.json'
     last = json.loads(marker.read_text()).get('nudged_at', 0) if marker.exists() else 0
     if n - max(covered_to, last) < NUDGE_EVERY:
-        return
+        return None, None
     marker.write_text(json.dumps({'nudged_at': n}))
     if live:
         msg = (f"CORTEX: {n - covered_to} transcript lines since this chat's last memory update "
@@ -176,11 +276,45 @@ def stop(data, root):
         msg = (f"CORTEX: this chat ({sid[:8]}) has no session log or ledger row yet, and recording is {mode}. "
                f"If anything so far passes the storage test, create the session log and the ledger row "
                f"(live 1-{n}) per CLAUDE.md §4. If nothing does, add the row as 'skipped 1-{n}'. Then stop.")
-    out = {'hookSpecificOutput': {'hookEventName': 'Stop', 'additionalContext': msg}}
-    if logs_enabled(root):
-        out['systemMessage'] = (f"\u25b8 CORTEX checkpoint due \u00b7 chat {sid[:8]} \u00b7 "
-                                f"{n - covered_to} unlogged lines (ledger {covered_to} \u2192 transcript {n})")
-    print(json.dumps(out))
+    short = (f"▸ CORTEX checkpoint due  ·  {n - covered_to} unlogged lines "
+             f"(ledger {covered_to} → transcript {n})")
+    return msg, short
+
+
+def stop(data, root):
+    if data.get('stop_hook_active'):
+        return
+    sid, tp = data.get('session_id', ''), data.get('transcript_path', '')
+    if not sid:
+        return
+    show = logs_enabled(root)
+    pulse_line = ''
+    try:  # live pulse: what actually changed in memory since the last turn
+        STATE_DIR.mkdir(exist_ok=True)
+        snap_file = STATE_DIR / f'{sid}.snap.json'
+        new = snapshot(root)
+        if snap_file.exists():
+            pulse_line = pulse(json.loads(snap_file.read_text()), new)
+        snap_file.write_text(json.dumps(new))
+    except Exception:
+        pass
+    msg, short = (None, None)
+    if tp and os.path.isfile(tp):
+        msg, short = nudge(root, sid, tp)
+    out = {}
+    if msg:
+        out['hookSpecificOutput'] = {'hookEventName': 'Stop', 'additionalContext': msg}
+    shown = []
+    if pulse_line:
+        _, rtext = ledger_row(root, sid)
+        live = [b or a for k, a, b in ranges(rtext) if k in ('live', 'mined')]
+        shown.append(f"⟲ CORTEX synced  ·  {pulse_line}" + (f"  ·  ledger → {max(live)}" if live else ''))
+    if short:
+        shown.append(short)
+    if shown and show:
+        out['systemMessage'] = '\n'.join(shown)
+    if out:
+        print(json.dumps(out))
 
 
 def main():

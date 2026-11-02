@@ -52,20 +52,23 @@ A crashed, closed or abandoned chat therefore leaves a recoverable trace instead
 You can see CORTEX working. The `SessionStart` hook prints a status panel in your terminal at the top of every chat, and Claude prints one-line `⟦CORTEX⟧` entries as it reads and writes memory:
 
 ```
-╭─ CORTEX ▸ online ──────────────────────────────────────────────────╮
-│ ● recording auto  ·  chat a1b2c3d4                                 │
-│ ▸ ledger    live 1-340                                             │
-│ ▸ memory    L0 2.1k tok  ·  L1 4 topic files  ·  L2 6 session logs │
-│ ▸ coverage  █████████░ 94%  ·  2 gaps to recover                   │
-╰────────────────────────────────────────────────────────────────────╯
+╭─ CORTEX ▸ online ──────────────────────────────────────────────────────╮
+│ ● auto recording  ·  chat a1b2c3d4                                     │
+│ ▸ this chat  ███████░░░  340 of 500 lines logged                       │
+│ ▸ project    940 lines recorded · 200 pending · 400 skipped on purpose │
+│ ▸ memory     L0 2.1k tok  ·  L1 4 topic files  ·  L2 6 session logs    │
+│ ▸ last write 2h ago (engineering/auth.md)                              │
+│ ▸ recovery   1 unlogged tail found, recovering first                   │
+╰────────────────────────────────────────────────────────────────────────╯
 
 ⟦CORTEX⟧ recall ▸ L1 engineering/auth.md · 118 lines · trust: sourced L1
 ⟦CORTEX⟧ commit ▸ L2 2026-11-01_a1b2c3d4-auth.md (L341-388) + L1 engineering/auth.md · ledger live → 388
 ⟦CORTEX⟧ recover ▸ 9f3e21aa L120-410 → sessions/2026-10-30_9f3e21aa-billing.md
-▸ CORTEX checkpoint due · chat a1b2c3d4 · 112 unlogged lines (ledger 388 → transcript 500)
+⟲ CORTEX synced  ·  L1 engineering/auth.md +6 · L2 2026-11-01_a1b2c3d4-auth.md +14  ·  ledger → 388
+▸ CORTEX checkpoint due  ·  112 unlogged lines (ledger 388 → transcript 500)
 ```
 
-The panel and the checkpoint notice come from the hooks and are computed from your files. The `⟦CORTEX⟧` lines are written by Claude under the rules in the `CLAUDE.md` block, and only for actions it actually performed. Turn it all off with `/cortex config logs=off`, or set `CORTEX_QUIET=1` to silence the hook output alone.
+The panel, the `⟲ synced` pulse and the checkpoint notice come from the hooks. They are computed from your files: the pulse is a before/after snapshot of `memory/`, so it appears only on turns where memory really changed. The `⟦CORTEX⟧` lines are written by Claude under the rules in the `CLAUDE.md` block, and only for actions it actually performed. Turn it all off with `/cortex config logs=off`, or set `CORTEX_QUIET=1` to silence the hook output alone.
 
 ---
 
