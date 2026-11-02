@@ -52,11 +52,12 @@ A crashed, closed or abandoned chat therefore leaves a recoverable trace instead
 You can see CORTEX working. The `SessionStart` hook prints a status panel in your terminal at the top of every chat, and Claude prints one-line `⟦CORTEX⟧` entries as it reads and writes memory:
 
 ```
-╭─ CORTEX ▸ memory online ────────────────────────────────────────────────╮
-│ chat a1b2c3d4 · recording auto · ledger: live 1-340                     │
-│ L0 ≈2.1k tok · L1 12 files · L2 31 session logs                         │
-│ coverage 94% of tracked transcript lines · 2 gap(s) queued for recovery │
-╰─────────────────────────────────────────────────────────────────────────╯
+╭─ CORTEX ▸ online ──────────────────────────────────────────────────╮
+│ ● recording auto  ·  chat a1b2c3d4                                 │
+│ ▸ ledger    live 1-340                                             │
+│ ▸ memory    L0 2.1k tok  ·  L1 4 topic files  ·  L2 6 session logs │
+│ ▸ coverage  █████████░ 94%  ·  2 gaps to recover                   │
+╰────────────────────────────────────────────────────────────────────╯
 
 ⟦CORTEX⟧ recall ▸ L1 engineering/auth.md · 118 lines · trust: sourced L1
 ⟦CORTEX⟧ commit ▸ L2 2026-11-01_a1b2c3d4-auth.md (L341-388) + L1 engineering/auth.md · ledger live → 388

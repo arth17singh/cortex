@@ -127,13 +127,15 @@ def session_start(data, root):
         return
     l0, l1, l2 = memory_stats(root)
     ledger = rtext if state else 'no row yet'
-    rows = [f"chat {sid[:8]} \u00b7 recording {mode} \u00b7 ledger: {ledger}",
-            f"L0 \u2248{l0 / 1000:.1f}k tok \u00b7 L1 {l1} file{'s' * (l1 != 1)} \u00b7 L2 {l2} session log{'s' * (l2 != 1)}"]
+    rows = [f"\u25cf recording {mode}  \u00b7  chat {sid[:8]}",
+            f"\u25b8 ledger    {ledger}",
+            f"\u25b8 memory    L0 {l0 / 1000:.1f}k tok  \u00b7  L1 {l1} topic file{'s' * (l1 != 1)}  \u00b7  L2 {l2} session log{'s' * (l2 != 1)}"]
     if covered_pct is not None:
-        rows.append(f"coverage {covered_pct}% of tracked transcript lines \u00b7 {len(gaps)} gap(s) queued for recovery")
+        bar = '\u2588' * (covered_pct // 10) + '\u2591' * (10 - covered_pct // 10)
+        rows.append(f"\u25b8 coverage  {bar} {covered_pct}%  \u00b7  {len(gaps)} gap{'s' * (len(gaps) != 1)} to recover")
     if data.get('source') == 'compact':
-        rows.append('resumed after compaction \u00b7 re-attaching session log')
-    msg = panel('CORTEX \u25b8 memory online', rows)
+        rows.append('\u25b8 resumed after compaction, re-attaching session log')
+    msg = panel('CORTEX \u25b8 online', rows)
     print(json.dumps({'systemMessage': msg,
                       'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': context}}))
 
