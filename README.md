@@ -59,7 +59,7 @@ CORTEX doesn't wait for you to maintain it. It learns from three signals, with n
 
 - **Your corrections.** When you tell Claude "we already decided that" or "no, it's X", that is a recall miss. Claude fixes the fact, then fixes *why* memory missed it: a fact never stored gets stored, a fact the map couldn't reach gets its words added to the map. It costs nothing extra, because it happens in the turn where you corrected it.
 - **Its own struggles.** If answering took more than 4 memory files, the map was missing something, so Claude adds the missing words. A rejected option found only in an old session log is copied into its topic file, so it's never proposed again.
-- **An automatic self-test.** After 5 session logs have changed (at most once a day), the hook asks for a self-test. Claude turns recent decisions, rejected options and findings into questions, plus two facts from the oldest logs, so old and subtle material keeps being tested. A fresh background agent answers them with nothing but memory, and every miss is repaired at its cause. You see one line: `⟦CORTEX⟧ selftest ▸ 8/9 recalled · fixed 1 (map)`.
+- **An automatic self-test.** After 5 session logs have changed (at most once a day), the hook asks for a self-test. Claude turns recent decisions, rejected options and findings into questions, plus two facts from the oldest logs, so old and subtle material keeps being tested. A fresh background agent answers them with nothing but memory, and every miss is repaired at its cause. It says nothing in chat; the score shows in the `learning` row of `/cortex status`.
 
 Learning only ever edits memory, never the rules, so every project keeps the same behaviour. `/cortex status` shows the self-test trend and how many corrections memory has learned from. `/cortex config selftest=off` stops the automatic test, and `/cortex selftest` runs one on demand.
 
@@ -78,12 +78,7 @@ You can see CORTEX working, without it getting in your way.
 ⟲ CORTEX synced  ·  L1 engineering/auth.md +6 · L2 2026-11-01_a1b2c3d4-auth.md +14  ·  ledger → 388
 ```
 
-**While Claude works**, one-line `⟦CORTEX⟧` entries for reads, writes, recoveries and checkpoints (written by Claude under the rules in `memory/RULES.md`, and only for actions it actually performed):
-
-```
-⟦CORTEX⟧ recall ▸ L1 engineering/auth.md · 118 lines · trust: sourced L1
-⟦CORTEX⟧ commit ▸ L2 2026-11-01_a1b2c3d4-auth.md (L341-388) + L1 engineering/auth.md · ledger live → 388
-```
+**Claude itself stays quiet about memory.** It never writes "Saved to memory" or "Session log: …" in a reply; the synced line already says what changed. It mentions memory only when something needs your OK, once per chat while recording is paused, when you run a `/cortex` command, or when it cites memory as the source of an answer.
 
 **On demand**, `/cortex status` prints a dashboard: the memory budget and the rules version, routing quality (topic files missing from the map, how many facts carry sources), how much memory text has actually been pulled into this chat (it measures the size of the tool results, so `Read`, `cat` and `grep` on `memory/` all count, and it resets after compaction), what memory says is current (`now`), your open threads (`next`), ledger totals and anything needing `attention`:
 
@@ -109,7 +104,7 @@ attention  ⚠ 1 chat with unlogged tails (9f3e21aa)
 suggest    ▸ /cortex all  (recover unlogged and untracked chats)
 ```
 
-The values in these samples are illustrative; the layout is real output. Turn the live output off with `/cortex config logs=off`, or set `CORTEX_QUIET=1` to silence the hook alone.
+The values in these samples are illustrative; the layout is real output. Turn the hooks' lines off with `/cortex config logs=off`, or set `CORTEX_QUIET=1` in the environment.
 
 ---
 

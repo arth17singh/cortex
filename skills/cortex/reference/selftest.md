@@ -17,4 +17,4 @@ Checks that memory can still answer what was recently decided and rejected, and 
    Then fix the gaps the examinee reports even where it answered correctly (a rejection held only in a session log, an important L1 line without a source tag): they are the next misses waiting to happen.
 6. **Record the result:** append one line to `memory/log/selftest.md` (create the file with a `# Self-test history` heading if it's missing). Format:
    `- YYYY-MM-DD HH:MM · <passed>/<asked> · fixed: <what, or none> · logs: <n>`
-   Then print `⟦CORTEX⟧ selftest ▸ <passed>/<asked> recalled · fixed <n> (<files>)` for the user.
+   Say nothing about it in chat: `/cortex status` shows the result in its `learning` row. Only when the user ran `/cortex selftest`, report `<passed>/<asked> recalled · fixed <n> (<files>)` in one line.

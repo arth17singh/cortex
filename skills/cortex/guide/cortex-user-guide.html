@@ -324,7 +324,7 @@
           <tr><td><code>commit=no|yes</code></td><td>No (default) adds <code>memory/</code> to <code>.gitignore</code>.</td></tr>
           <tr><td><code>timezone=&lt;IANA&gt;</code></td><td>For dates in memory, for example <code>America/Los_Angeles</code>.</td></tr>
           <tr><td><code>exclude-default=…</code></td><td>Chats that <span class="cmd">/cortex all</span> always skips.</td></tr>
-          <tr><td><code>logs=on|off</code></td><td>The live status line at start-up and Claude's one-line <code>⟦CORTEX⟧</code> entries.</td></tr>
+          <tr><td><code>logs=on|off</code></td><td>The hooks' live lines: the status line at start-up and the <code>⟲ CORTEX synced</code> line after a turn that changed memory. Claude never reports memory writes in chat either way.</td></tr>
           <tr><td><code>selftest=on|off</code></td><td>The automatic self-test. <span class="cmd">/cortex selftest</span> still works when it's off.</td></tr>
           <tr><td><code>rules=import|inline</code></td><td>Inline copies the rules into <code>CLAUDE.md</code>, for tools that don't follow <code>@</code> imports.</td></tr>
           <tr><td><code>hooks=install|remove</code></td><td>Shows the settings change and asks first.</td></tr>
@@ -426,9 +426,8 @@
   </div>
 
   <p class="text-sm font-semibold mt-6 mb-2">What you see</p>
-  <pre>⟦CORTEX⟧ selftest ▸ 9/9 recalled · fixed 3 (Rejected bullets in architecture, working-with-claude, strategy-and-ideas)
-learning   self-test 7/9 → 8/9 → 9/9 (last 2026-11-02)  ·  next self-test after 3 more changed logs  ·  4 corrections learned</pre>
-  <p class="text-xs muted mt-2">The first line is printed when a self-test finishes. The second is the <code>learning</code> row of <span class="cmd">/cortex status</span>. The score trend in this example is illustrative.</p>
+  <pre>learning   self-test 7/9 → 8/9 → 9/9 (last 2026-11-02)  ·  next self-test after 3 more changed logs  ·  4 corrections learned</pre>
+  <p class="text-xs muted mt-2">The self-test says nothing in chat. Its result is the <code>learning</code> row of <span class="cmd">/cortex status</span>, and the files it repaired show in the synced line. The score trend in this example is illustrative.</p>
 </section>
 
 <!-- ============================================================ LEDGER -->
