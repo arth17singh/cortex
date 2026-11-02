@@ -91,17 +91,19 @@
   <button class="btn btn-sm theme-btn" id="theme-toggle" type="button" aria-label="Switch light or dark theme">Light / dark</button>
   <p class="text-sm muted">Claude Code skill · installed at <code>~/.claude/skills/cortex/</code></p>
   <h1 class="text-4xl lg:text-5xl font-bold mt-2 tracking-tight"><span class="mark">CORTEX</span> user guide</h1>
-  <p class="text-xl mt-3 prose-w muted">Layered project memory that keeps itself up to date, so you can clear a chat or open a new one without losing anything.</p>
+  <p class="text-xl mt-3 prose-w muted">Layered project memory that keeps itself up to date and gets better on its own, so you can clear a chat or open a new one without losing anything.</p>
   <div class="alert mt-6 prose-w border-l-4" style="border-left-color: var(--color-primary)" id="answer">
     <div>
       <p class="font-semibold">The short version</p>
-      <p>In each project folder, run <span class="cmd">/cortex all</span> once (or <span class="cmd">/cortex start</span> if past chats don't matter). After that, every chat records itself, and built-in hooks remind Claude to log and keep track. You don't re-run anything to capture new work.</p>
+      <p>In each project folder, run <span class="cmd">/cortex all</span> once (or <span class="cmd">/cortex start</span> if past chats don't matter). After that, every chat records itself, built-in hooks keep it on track, and memory repairs its own blind spots. You don't re-run anything to capture new work.</p>
+      <p class="mt-1 text-sm muted">Project set up with an older version? Run <span class="cmd">/cortex upgrade</span> there once.</p>
     </div>
   </div>
   <nav class="flex flex-wrap gap-2 mt-6 text-sm" aria-label="Sections">
     <a class="navlink" href="#how">How it works</a>
     <a class="navlink" href="#quickstart">Quick start</a>
     <a class="navlink" href="#commands">Commands</a>
+    <a class="navlink" href="#learning">Self-improvement</a>
     <a class="navlink" href="#ledger">The ledger</a>
     <a class="navlink" href="#modes">Recording and pausing</a>
     <a class="navlink" href="#faq">FAQ</a>
@@ -112,7 +114,7 @@
 <!-- ============================================================ HOW -->
 <section id="how" class="mb-14">
   <h2 class="text-2xl font-bold mb-2">How it works</h2>
-  <p class="prose-w  mb-6">Memory lives in a <code>memory/</code> folder inside each project, split into layers. A new chat automatically loads only the small top layer, then opens deeper layers only when a task needs them. That keeps each start cheap, about 3k tokens on this project (<span class="cmd">/cortex status</span> shows yours), because the history lives in deeper layers.</p>
+  <p class="prose-w  mb-6">Memory lives in a <code>memory/</code> folder inside each project, split into layers. A new chat automatically loads only the top layer: the rules, current status, and a <strong>map</strong> of every topic file and recent session log. It opens deeper layers only when a task needs them. The history stays in the deeper layers, so each start stays cheap. <span class="cmd">/cortex status</span> shows your numbers.</p>
 
   <figure class="card bg-base-200 p-4" id="fig-layers">
     <svg viewBox="0 0 880 300" width="100%" role="img" aria-labelledby="layers-title">
@@ -120,7 +122,7 @@
       <g id="l0"><title>L0: always loaded</title>
         <rect x="20" y="20" width="840" height="56" rx="10" fill="var(--color-primary)" opacity=".9" />
         <text x="40" y="54" font-size="18" font-weight="700" fill="var(--color-primary-content)">L0 · always loaded</text>
-        <text x="300" y="54" font-size="15" fill="var(--color-primary-content)">INDEX.md (status, recording mode, map) + your preferences</text>
+        <text x="300" y="54" font-size="15" fill="var(--color-primary-content)">RULES.md + INDEX.md (status, map) + your preferences</text>
       </g>
       <g id="l1"><title>L1: current truth</title>
         <rect x="20" y="90" width="840" height="56" rx="10" fill="var(--color-base-300)" />
@@ -152,23 +154,28 @@
     </div></div>
     <div class="card bg-base-200"><div class="card-body p-5">
       <h3 class="font-semibold">Hooks keep it honest</h3>
-      <p class="text-sm muted">Two small Claude Code hooks run automatically. When a chat starts, one tells Claude which chat it is and what needs recovering. When Claude finishes a reply, the other reminds it if memory has fallen behind. Hooks never mark anything as recorded themselves.</p>
+      <p class="text-sm muted">Two small Claude Code hooks run automatically. When a chat starts, one tells Claude which chat it is, what needs recovering, and whether memory needs tidying or a self-test. When Claude finishes a reply, the other reminds it if memory has fallen behind. Hooks never mark anything as recorded themselves.</p>
     </div></div>
     <div class="card bg-base-200"><div class="card-body p-5">
-      <h3 class="font-semibold">It reads smartly</h3>
-      <p class="text-sm muted">Claude picks 1–3 topic files from the index, searches session logs and reads only the matching lines, and stops after 4 files. It trusts the code first and cites where each answer came from.</p>
+      <h3 class="font-semibold">It reads smartly, and checks before acting</h3>
+      <p class="text-sm muted">Claude picks 1–3 topic files by the words on the map, reads only the matching lines of session logs, and opens at most 4 files per question. Before editing code, stating a fact or recommending something, it checks memory, including options that were already rejected, so it doesn't re-propose them. It trusts the code first and cites its sources.</p>
+    </div></div>
+    <div class="card bg-base-200"><div class="card-body p-5">
+      <h3 class="font-semibold">It stays bounded, without forgetting</h3>
+      <p class="text-sm muted">The always-loaded part has fixed caps: 8 status bullets, 10 session logs on the map, 6 files per folder, 40 preferences. When one is crossed, Claude moves detail one layer down and leaves a pointer. It backs up first and never deletes, so the start-up cost has a ceiling but nothing is lost.</p>
     </div></div>
     <div class="card bg-base-200"><div class="card-body p-5">
       <h3 class="font-semibold">You stay in control</h3>
       <p class="text-sm muted">Pause a chat, exclude one, make memory forget something, or switch recording to manual. Anything big shows you a plan first and waits for your OK.</p>
     </div></div>
   </div>
+  <p class="text-sm muted mt-4 prose-w">And it improves itself: see <a class="link" href="#learning">Memory that improves itself</a>.</p>
 </section>
 
 <!-- ============================================================ QUICK START -->
 <section id="quickstart" class="mb-14">
   <h2 class="text-2xl font-bold mb-4">Quick start: pick your situation</h2>
-  <div class="grid md:grid-cols-3 gap-4">
+  <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
     <div class="card bg-base-200 border border-base-300" id="qs-new"><div class="card-body p-5">
       <span class="badge soft" style="--tone: var(--color-primary)">New project</span>
       <h3 class="font-semibold mt-2">History doesn't matter</h3>
@@ -186,6 +193,12 @@
       <h3 class="font-semibold mt-2">Now history matters</h3>
       <pre>/cortex all</pre>
       <p class="text-sm muted">It skips everything already tracked (the ledger knows) and fills in only the older chats.</p>
+    </div></div>
+    <div class="card bg-base-200 border border-base-300" id="qs-upgrade"><div class="card-body p-5">
+      <span class="badge soft tone-scope">Set up with an older version</span>
+      <h3 class="font-semibold mt-2">Move to the current rules</h3>
+      <pre>/cortex upgrade</pre>
+      <p class="text-sm muted">It backs up first, shows what changes and waits for your OK. Your memory is kept. Upgrade each project when it suits you, for example after a deadline.</p>
     </div></div>
   </div>
   <p class="text-sm muted mt-4 prose-w">Not sure what's tracked? <span class="cmd">/cortex status</span> shows everything and changes nothing.</p>
@@ -236,6 +249,18 @@
       </ul>
       <pre>/cortex save
 /cortex save "we chose canary at 10% because judges watch the error rate"</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-upgrade"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex upgrade</h4><span class="badge badge-sm soft tone-ask">asks first</span><span class="badge badge-sm soft tone-scope">once per project</span></div>
+      <p><strong>Moves a project to the current rules and layout.</strong> Memory content is kept; only its format changes.</p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li>Backs up <code>CLAUDE.md</code>, the index, preferences and protocol first.</li>
+        <li>Copies the rules into <code>memory/RULES.md</code>. Rebuilds the index as a map without losing a single word from the old tables. Swaps the <code>CLAUDE.md</code> block for a 6-line stub.</li>
+        <li>Refuses while another chat in the project is open, because that chat still follows the old rules.</li>
+        <li>Later, if the skill's rules change, it shows the diff and refreshes <code>RULES.md</code>.</li>
+      </ul>
+      <pre>/cortex upgrade</pre>
     </div></article>
 
   </div>
@@ -299,6 +324,10 @@
           <tr><td><code>commit=no|yes</code></td><td>No (default) adds <code>memory/</code> to <code>.gitignore</code>.</td></tr>
           <tr><td><code>timezone=&lt;IANA&gt;</code></td><td>For dates in memory, for example <code>America/Los_Angeles</code>.</td></tr>
           <tr><td><code>exclude-default=…</code></td><td>Chats that <span class="cmd">/cortex all</span> always skips.</td></tr>
+          <tr><td><code>logs=on|off</code></td><td>The live status line at start-up and Claude's one-line <code>⟦CORTEX⟧</code> entries.</td></tr>
+          <tr><td><code>selftest=on|off</code></td><td>The automatic self-test. <span class="cmd">/cortex selftest</span> still works when it's off.</td></tr>
+          <tr><td><code>rules=import|inline</code></td><td>Inline copies the rules into <code>CLAUDE.md</code>, for tools that don't follow <code>@</code> imports.</td></tr>
+          <tr><td><code>hooks=install|remove</code></td><td>Shows the settings change and asks first.</td></tr>
         </tbody>
       </table></div>
     </div></article>
@@ -306,10 +335,10 @@
   </div>
 
   <h3 class="text-lg font-semibold mt-10 mb-3 grp-title grp-look">Look and check</h3>
-  <div class="grid lg:grid-cols-3 gap-4 grp-look">
+  <div class="grid lg:grid-cols-2 gap-4 grp-look">
     <article class="card bg-base-200" id="cmd-status"><div class="card-body p-5">
       <h4 class="cmd text-lg">/cortex status</h4>
-      <p class="text-sm">Changes nothing. It shows every chat with its state, coverage and gaps; the recording mode; whether this chat is paused; the last save; memory size and start-up token cost; any warnings; and a suggested next step.</p>
+      <p class="text-sm">Changes nothing; the reply is the dashboard only. It shows activity, the memory budget and rules version, routing quality (topic files missing from the map, how many facts carry sources), the self-test trend, what's current and what's next, ledger totals, when this chat last saved, settings, anything needing attention, and one suggested next step.</p>
     </div></article>
     <article class="card bg-base-200" id="cmd-recall"><div class="card-body p-5">
       <h4 class="cmd text-lg">/cortex recall &lt;question&gt;</h4>
@@ -318,10 +347,88 @@
     </div></article>
     <article class="card bg-base-200" id="cmd-audit"><div class="card-body p-5">
       <h4 class="cmd text-lg">/cortex audit</h4>
-      <p class="text-sm">A health check. Does the index match the files? Are files within their size limits? Are there duplicates, facts that no longer match the code, or gaps in coverage? It proposes fixes and applies them on your OK. Worth running about every 10 sessions.</p>
+      <p class="text-sm">A deeper health check: does the map match the files, are caps respected, are there duplicates, facts that no longer match the code, or gaps in coverage? It proposes fixes and applies them on your OK. Most upkeep now happens on its own, so run it when you want a full review.</p>
+    </div></article>
+    <article class="card bg-base-200" id="cmd-selftest"><div class="card-body p-5">
+      <h4 class="cmd text-lg">/cortex selftest</h4>
+      <p class="text-sm">Quizzes memory now, instead of waiting for the automatic run: a fresh agent answers questions about recent decisions, rejected options and old findings using only memory, and every miss is repaired. See <a class="link" href="#learning">Self-improvement</a>.</p>
     </div></article>
   </div>
   <p class="text-sm muted mt-4"><span class="cmd">/cortex help</span> lists all commands, with a 3-line status.</p>
+</section>
+
+<!-- ============================================================ LEARNING -->
+<section id="learning" class="mb-14">
+  <h2 class="text-2xl font-bold mb-2">Memory that improves itself</h2>
+  <p class="prose-w mb-6"><strong>Every time memory fails to answer something, CORTEX fixes the reason it failed, not just the answer.</strong> You don't run anything for this. It learns from three signals, and each one leads to the same question: why didn't memory have it?</p>
+
+  <figure class="card bg-base-200 p-4" id="fig-learning">
+    <svg viewBox="0 0 880 300" width="100%" role="img" aria-labelledby="learning-title">
+      <title id="learning-title">Three signals lead to finding the cause, which decides the repair</title>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity=".6" />
+        </marker>
+      </defs>
+      <g id="sig-correction"><title>Signal: you correct Claude</title>
+        <rect x="20" y="20" width="240" height="64" rx="10" fill="var(--color-base-300)" />
+        <text x="36" y="46" font-size="15" font-weight="700" fill="currentColor">You correct Claude</text>
+        <text x="36" y="68" font-size="13" fill="currentColor" opacity=".75">"we already decided…"</text></g>
+      <g id="sig-lookup"><title>Signal: a lookup needed more than 4 files</title>
+        <rect x="20" y="118" width="240" height="64" rx="10" fill="var(--color-base-300)" />
+        <text x="36" y="144" font-size="15" font-weight="700" fill="currentColor">A hard lookup</text>
+        <text x="36" y="166" font-size="13" fill="currentColor" opacity=".75">more than 4 files to answer</text></g>
+      <g id="sig-selftest"><title>Signal: a self-test miss</title>
+        <rect x="20" y="216" width="240" height="64" rx="10" fill="var(--color-base-300)" />
+        <text x="36" y="242" font-size="15" font-weight="700" fill="currentColor">Self-test miss</text>
+        <text x="36" y="264" font-size="13" fill="currentColor" opacity=".75">automatic quiz, fresh agent</text></g>
+      <g id="cause"><title>Find the cause</title>
+        <rect x="330" y="110" width="210" height="80" rx="12" fill="var(--color-primary)" opacity=".9" />
+        <text x="435" y="145" text-anchor="middle" font-size="16" font-weight="700" fill="var(--color-primary-content)">Find the cause</text>
+        <text x="435" y="168" text-anchor="middle" font-size="13" fill="var(--color-primary-content)">why was it missed?</text></g>
+      <g id="fix-store"><title>Repair: store the fact</title>
+        <rect x="610" y="20" width="250" height="64" rx="10" fill="none" stroke="var(--color-success)" stroke-width="1.5" />
+        <text x="626" y="46" font-size="15" font-weight="700" fill="var(--color-success)">Store the fact</text>
+        <text x="626" y="68" font-size="13" fill="currentColor" opacity=".75">it was never in a topic file</text></g>
+      <g id="fix-map"><title>Repair: add words to the map</title>
+        <rect x="610" y="118" width="250" height="64" rx="10" fill="none" stroke="var(--color-success)" stroke-width="1.5" />
+        <text x="626" y="144" font-size="15" font-weight="700" fill="var(--color-success)">Add words to the map</text>
+        <text x="626" y="166" font-size="13" fill="currentColor" opacity=".75">stored, but unreachable</text></g>
+      <g id="fix-rejected"><title>Repair: record the rejection in its topic file</title>
+        <rect x="610" y="216" width="250" height="64" rx="10" fill="none" stroke="var(--color-success)" stroke-width="1.5" />
+        <text x="626" y="242" font-size="15" font-weight="700" fill="var(--color-success)">Add a Rejected: bullet</text>
+        <text x="626" y="264" font-size="13" fill="currentColor" opacity=".75">rejection lived only in a log</text></g>
+      <g id="edges" stroke="currentColor" stroke-width="1.5" opacity=".6" fill="none">
+        <path id="e1" d="M260,52 C300,52 300,140 328,140" marker-end="url(#arrow)" />
+        <path id="e2" d="M260,150 L328,150" marker-end="url(#arrow)" />
+        <path id="e3" d="M260,248 C300,248 300,160 328,160" marker-end="url(#arrow)" />
+        <path id="e4" d="M540,140 C575,140 575,52 608,52" marker-end="url(#arrow)" />
+        <path id="e5" d="M540,150 L608,150" marker-end="url(#arrow)" />
+        <path id="e6" d="M540,160 C575,160 575,248 608,248" marker-end="url(#arrow)" />
+      </g>
+    </svg>
+    <figcaption class="text-sm muted mt-2">Any signal can lead to any repair; the cause decides which. Every repair is logged, so the next chat starts with the gap closed.</figcaption>
+  </figure>
+
+  <div class="grid md:grid-cols-3 gap-4 mt-6">
+    <div class="card bg-base-200" id="learn-corrections"><div class="card-body p-5">
+      <h3 class="font-semibold">From your corrections (free)</h3>
+      <p class="text-sm muted">When you say "no, it's X" or "we already decided that", Claude fixes the fact in its topic file and then fixes why memory missed it, in the same turn. It adds a changelog line <code>recall miss: …</code>, so you can count what it has learned. While recording is paused it writes nothing and suggests <span class="cmd">/cortex save</span> instead.</p>
+    </div></div>
+    <div class="card bg-base-200" id="learn-selftest"><div class="card-body p-5">
+      <h3 class="font-semibold">The automatic self-test</h3>
+      <p class="text-sm muted">After 5 session logs change (at most once a day), the start-up hook asks for a self-test. Recent decisions, rejected options and findings, plus two facts from the <em>oldest</em> logs, become questions. A fresh background agent answers using only memory while you keep working. Then Claude grades the answers and repairs every miss, and any weak spot the agent noticed.</p>
+    </div></div>
+    <div class="card bg-base-200" id="learn-limits"><div class="card-body p-5">
+      <h3 class="font-semibold">What it never does</h3>
+      <p class="text-sm muted">Learning edits memory only: topic files, the map, preferences. It never changes the rules (<code>memory/RULES.md</code>), so every project behaves the same, and it never touches your code. The self-test costs about one short agent run. Turn it off with <code>/cortex config selftest=off</code>.</p>
+    </div></div>
+  </div>
+
+  <p class="text-sm font-semibold mt-6 mb-2">What you see</p>
+  <pre>⟦CORTEX⟧ selftest ▸ 9/9 recalled · fixed 3 (Rejected bullets in architecture, working-with-claude, strategy-and-ideas)
+learning   self-test 7/9 → 8/9 → 9/9 (last 2026-11-02)  ·  next self-test after 3 more changed logs  ·  4 corrections learned</pre>
+  <p class="text-xs muted mt-2">The first line is printed when a self-test finishes. The second is the <code>learning</code> row of <span class="cmd">/cortex status</span>. The score trend in this example is illustrative.</p>
 </section>
 
 <!-- ============================================================ LEDGER -->
@@ -400,7 +507,7 @@
     <div class="collapse collapse-arrow join-item border border-base-300" id="faq-hooks">
       <input type="checkbox">
       <div class="collapse-title font-semibold">What do the hooks do? Do they turn CORTEX on everywhere?</div>
-      <div class="collapse-content text-sm"><p>They're two automatic reminders. When a chat starts, Claude is told which chat it is and whether anything from a recent chat is missing. After each reply, Claude gets a nudge if it hasn't saved for a while. They <strong>never save anything themselves</strong>, and they only act in folders where CORTEX is set up (<code>memory/</code> exists). Everywhere else they do nothing. CORTEX only turns on in a project when you run <span class="cmd">/cortex start</span> or <span class="cmd">/cortex all</span> there.</p></div>
+      <div class="collapse-content text-sm"><p>They're two automatic reminders. When a chat starts, Claude is told which chat it is, whether anything from a recent chat is missing, and whether memory needs tidying or a self-test is due. After each reply, Claude gets a nudge if it hasn't saved for a while. They <strong>never save anything themselves</strong>; a hook can only ask, and Claude does the work. They only act in folders where CORTEX is set up (<code>memory/</code> exists); everywhere else they do nothing. CORTEX only turns on in a project when you run <span class="cmd">/cortex start</span> or <span class="cmd">/cortex all</span> there. Without hooks CORTEX still works, just without these automatic reminders.</p></div>
     </div>
     <div class="collapse collapse-arrow join-item border border-base-300" id="faq-recover">
       <input type="checkbox">
@@ -445,7 +552,17 @@
     <div class="collapse collapse-arrow join-item border border-base-300" id="faq-tokens">
       <input type="checkbox">
       <div class="collapse-title font-semibold">Does it cost a lot of tokens?</div>
-      <div class="collapse-content text-sm "><p>Very little. Each chat starts with about 3k tokens of memory (the CORTEX rules, the index and your preferences). Each memory update is a small edit, usually 50–300 tokens. Backfilling a large history is a one-time cost; this project's ~25 MB of chats took about 4 helpers and 10 minutes.</p></div>
+      <div class="collapse-content text-sm "><p>Very little. Each chat starts with the rules (about 1.8k tokens, fixed) plus your memory map and preferences (about 1.7k on a busy hackathon project, and capped at about 3k). Each memory update is a small edit, usually 50–300 tokens. Backfilling a large history is a one-time cost: one project's ~25 MB of chats took about 4 helpers and 10 minutes. The automatic self-test costs about one short agent run, at most once a day.</p></div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-fill">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">Will the always-loaded memory keep growing?</div>
+      <div class="collapse-content text-sm "><p>No. It's bounded by structure, not by trimming. The map stays detailed, because that's how Claude finds old and subtle things, but each part has a cap: 8 status bullets, 10 session logs on the map, 6 files per folder, 40 preferences. When one is crossed, older detail moves one layer down with a pointer left behind: logs to <code>sessions/README.md</code>, a big folder to its own <code>_index.md</code>, old status into its topic file. Filled to every cap it measures about 3k tokens, so that's the ceiling.</p></div>
+    </div>
+    <div class="collapse collapse-arrow join-item border border-base-300" id="faq-old">
+      <input type="checkbox">
+      <div class="collapse-title font-semibold">Will it still find something from weeks ago?</div>
+      <div class="collapse-content text-sm "><p>That's what the layers are for. Each session log on the map lists its topics, decisions and rejected options, so a "why did we…" question goes straight to the right log, and Claude reads just the matching lines. Rejected options are also copied into their topic file. The self-test keeps quizzing facts from the oldest logs, so if something old becomes unreachable, it gets noticed and fixed.</p></div>
     </div>
     <div class="collapse collapse-arrow join-item border border-base-300" id="faq-what">
       <input type="checkbox">
@@ -467,33 +584,40 @@
     <div class="card bg-base-200"><div class="card-body p-5">
       <h3 class="font-semibold">Installed once (all projects)</h3>
       <pre>~/.claude/skills/cortex/
-  SKILL.md                 commands
-  reference/build.md       build and backfill procedure
-  reference/claude-block.md  rules written into CLAUDE.md
-  reference/*-template.md  index, protocol, ledger templates
-  scripts/ledger_scan.py   coverage report
+  SKILL.md                    commands
+  reference/rules.md          the rules every chat follows
+  reference/claude-block.md   the 6-line stub for CLAUDE.md
+  reference/build.md          build, backfill and upgrade
+  reference/selftest.md       the self-test procedure
+  reference/*-template.md     index, protocol, ledger templates
+  scripts/cortex_hook.py      start and finish hooks
+  scripts/cortex_status.py    the status dashboard
+  scripts/selftest.py         picks facts to quiz
+  scripts/ledger_scan.py      coverage report
   scripts/extract_transcript.py  transcript reader
-  scripts/cortex_hook.py   start and finish hooks
   guide/cortex-user-guide.html   this guide</pre>
     </div></div>
     <div class="card bg-base-200"><div class="card-body p-5">
       <h3 class="font-semibold">Per project</h3>
-      <pre>CLAUDE.md                (a CORTEX block, between markers)
-memory/INDEX.md          L0: status, recording mode, map
+      <pre>CLAUDE.md                (6-line CORTEX block: imports)
+memory/RULES.md          copy of the skill's rules
+memory/INDEX.md          L0: status, recording, map
 memory/team/user-preferences.md
 memory/&lt;topic&gt;/*.md      L1 topic files
+memory/&lt;topic&gt;/_index.md  map of a big folder
 memory/sessions/*.md     L2 logs, named by chat id
-memory/_templates/       copied, not read
+memory/sessions/README.md  map of older logs
 memory/LEDGER.md         what's tracked
-memory/PROTOCOL.md       config, templates, audit
-memory/log/changelog.md</pre>
+memory/PROTOCOL.md       config, caps, consolidation
+memory/log/changelog.md  incl. "recall miss" lines
+memory/log/selftest.md   self-test history
+memory/_templates/       copied, not read</pre>
     </div></div>
   </div>
   <div class="alert mt-4 text-sm">
-    <div><p><strong>To remove CORTEX from a project:</strong> delete the block between <code>&lt;!-- CORTEX:BEGIN</code> and <code>&lt;!-- CORTEX:END --&gt;</code> in <code>CLAUDE.md</code>, then delete <code>memory/</code> if you want the memory gone. <strong>To uninstall the skill:</strong> remove the two <code>cortex_hook.py</code> entries from <code>hooks</code> in <code>~/.claude/settings.json</code> (a backup was made when they were added), then delete <code>~/.claude/skills/cortex/</code>.</p>
-    <p class="mt-1 muted">No skill installed somewhere? <code>CORTEX_master_prompt.md</code> is a paste-anywhere fallback generated from the same files.</p></div>
+    <div><p><strong>To remove CORTEX from a project:</strong> delete the block between <code>&lt;!-- CORTEX:BEGIN</code> and <code>&lt;!-- CORTEX:END --&gt;</code> in <code>CLAUDE.md</code>, then delete <code>memory/</code> if you want the memory gone. <strong>To uninstall the skill:</strong> run <code>./install.sh --uninstall-hooks</code> from the CORTEX repo (it backs up <code>settings.json</code> first), then delete <code>~/.claude/skills/cortex/</code>.</p></div>
   </div>
-  <p class="text-xs opacity-60 mt-8">Not covered here: the internal build procedure (<code>reference/build.md</code>) and the exact rules each chat follows (<code>reference/claude-block.md</code>). Read those to change how CORTEX behaves.</p>
+  <p class="text-xs opacity-60 mt-8">Not covered here: the build and upgrade procedure (<code>reference/build.md</code>) and the exact rules each chat follows (<code>reference/rules.md</code>). Read those to change how CORTEX behaves.</p>
 </section>
 
 </div>
