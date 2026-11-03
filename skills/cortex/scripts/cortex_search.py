@@ -161,7 +161,9 @@ def search(root, query, alts=(), max_evidence=8):
     by_id = {r['id']: r for r in records}
     sup = L.superseded_ids(records)
     ents, aliases = L.entities(records), L.load_aliases(root)
-    use_graph = not os.environ.get('CORTEX_NO_GRAPH')      # ablation switch for the eval (records without the graph)
+    # graph traversal (impact, connection, links, one-hop expansion) is opt-in: on the 2026-11-03 held-out eval it
+    # failed its pre-registered bar (+4.6 relational, -6.2 control); CORTEX_GRAPH=1 turns it on
+    use_graph = os.environ.get('CORTEX_GRAPH') == '1' and not os.environ.get('CORTEX_NO_GRAPH')
     g = L.graph(records) if use_graph else {}
     terms = L.tokens(' '.join([query, *alts]))
     linked = link(terms, ' '.join([query, *alts]), ents, aliases)

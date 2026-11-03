@@ -50,7 +50,7 @@ def v7_arm(dst, src, skill, graph):
     stub = re.search(r'=====\n(<!-- CORTEX:BEGIN v7 -->.*?<!-- CORTEX:END -->)\n=====',
                      (skill / 'reference' / 'claude-block.md').read_text(), re.S).group(1)
     stub = stub.replace('{{SKILL_DIR}}', str(skill))
-    env = None
+    env = {'CORTEX_GRAPH': '1'} if graph else None     # graph is opt-in since 2026-11-03
     if not graph:
         stub = stub.replace('@memory/GRAPH.md\n', '')
         for f in ('GRAPH.md', 'entities.md'):
@@ -66,7 +66,7 @@ def v7_arm(dst, src, skill, graph):
     md = (dst / 'CLAUDE.md').read_text()
     md = re.sub(r'<!-- CORTEX:BEGIN v5 -->.*?<!-- CORTEX:END -->', lambda m: stub, md, flags=re.S)
     (dst / 'CLAUDE.md').write_text(md)
-    pre = 'CORTEX_NO_GRAPH=1 ' if not graph else ''
+    pre = 'CORTEX_NO_GRAPH=1 ' if not graph else 'CORTEX_GRAPH=1 '
     py = f'{pre}python3 {skill}/scripts/'
     hooks = {'SessionStart': hook(py + 'cortex_hook.py'),
              'UserPromptSubmit': hook(py + 'cortex_inject.py', 8),

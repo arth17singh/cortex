@@ -2,7 +2,7 @@
 # CORTEX memory rules
 
 `<skill>` is the skill path in the CORTEX heading of `CLAUDE.md`. Hooks do the mechanical work; these rules cover judgment.
-- **Always loaded:** these rules, `INDEX.md` (the curated map + "Where we are"), `GRAPH.md` (the subjects and how they connect, rendered from records), `team/user-preferences.md`.
+- **Always loaded:** these rules, `INDEX.md` (the curated map + "Where we are"), `team/user-preferences.md`.
 - **Records** `memory/records.jsonl`: typed, dated facts, decisions, rejections and relations; the source of truth. Script-owned, like `GRAPH.md`, `entities.md`, `aliases.json`, `*/_index.md`: never edit them.
 - **Claude-owned:** `INDEX.md`, topic-file prose, session logs, preferences.
 
@@ -13,7 +13,7 @@
 
 ## Find: `cortex_search` before you act
 - A `CORTEX memory relevant to this message` block may arrive with a message: dated records, rejected options, old → new chains. It is a hint, not the whole answer.
-- Before stating a project fact, editing code, or recommending an option, run `python3 <skill>/scripts/cortex_search.py "<question>" --alt "<other wording>"` (absolute path; never `cd` into the skill). It returns current records, history chains, rejected options, links, impact and connection, and evidence as `file:line`.
+- Before stating a project fact, editing code, or recommending an option, run `python3 <skill>/scripts/cortex_search.py "<question>" --alt "<other wording>"` (absolute path; never `cd` into the skill). It returns current records, history chains, rejected options, and evidence as `file:line`.
 - For why, how-connected, what-depends or multi-part questions, also open the cited session-log lines (±20) before answering: the connecting detail is usually there. Cover every part of the question.
 - `open, unconfirmed` records are proposals or questions, not decisions: say so.
 - **Not in memory:** answer only what memory states. If the specific thing asked isn't there after a second wording and a `grep -rn -i` of `memory/`, say it isn't recorded; don't substitute a nearby fact.

@@ -11,7 +11,6 @@ On upgrade, replace everything from `<!-- CORTEX:BEGIN` to `<!-- CORTEX:END -->`
 ## Project memory (CORTEX) · skill: `{{SKILL_DIR}}`
 @memory/RULES.md
 @memory/INDEX.md
-@memory/GRAPH.md
 @memory/team/user-preferences.md
 
 If the CORTEX memory rules are not in your context above, read `memory/RULES.md` before doing anything else.

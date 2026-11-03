@@ -7,7 +7,7 @@ usage: cortex_upgrade.py <project_dir> [--tz IANA] [--transcripts DIR] [--dry-ru
    read (a chat open in another window is read up to now; records are deduplicated).
 2. Backs up memory/ to memory/.backups/<YYYY-MM-DD-HHMM>-pre-v7/ (everything except older backups).
 3. Backfills records from the transcripts (cortex_backfill.py: Haiku extraction, provenance `transcript`).
-4. Installs the v7 rules (memory/RULES.md) and the v7 CLAUDE.md block (imports GRAPH.md), and renders
+4. Installs the v7 rules (memory/RULES.md) and the v7 CLAUDE.md block, and renders
    GRAPH.md and entities.md. Curated files (INDEX.md, topic files, session logs) are not touched.
 --dry-run prints the plan (chats, lines, estimated model calls) and changes nothing.
 """
