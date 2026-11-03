@@ -489,8 +489,8 @@ def session_start(data, root):
     flag = ' --project' if scope == 'project' else ''
     if switch == 'off':
         out = {'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext':
-               f"CORTEX is off for this {scope}: don't read, search, cite or write memory/, and ignore memory already "
-               f"in context, until the user runs /cortex on{flag}."}}
+               f"CORTEX is off for this {scope}: don't read, search, cite or write memory/, and don't bring in anything "
+               f"known only from memory that hasn't come up in this chat, until the user runs /cortex on{flag}."}}
         if logs_enabled(root):
             out['systemMessage'] = f"\u25cc CORTEX off for this {scope}  \u00b7  not reading or saving  \u00b7  /cortex on{flag}"
         print(json.dumps(out))
@@ -520,9 +520,10 @@ def session_start(data, root):
         lines.append("After compaction: keep appending to this chat's existing session log (listed in its ledger row).")
     budget_note = selftest_note = ''
     if switch == 'read-off':
-        lines.append(f"Memory reading is off for this {scope}: don't use memory to answer (don't open, search or cite "
-                     f"it for an answer, write no recall line, and ignore memory already in context when answering). "
-                     f"Keep recording: open the session log, the map and the owning topic file only to write to them. "
+        lines.append(f"Memory reading is off for this {scope}: don't open, search or cite memory, write no recall line, "
+                     f"and don't bring in anything known only from memory that hasn't come up in this chat (what has "
+                     f"come up stays usable). Keep recording: open the session log, the map and the owning topic file "
+                     f"only to write to them. "
                      f"/cortex resume --read{flag} turns reading back on.")
         budget_note = '\u25cc reading off, still saving'
     try:

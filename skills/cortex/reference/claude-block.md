@@ -24,7 +24,7 @@ If the CORTEX memory rules are not in your context above, read `memory/RULES.md`
 ## Project memory (CORTEX) · skill: `{{SKILL_DIR}}` · reading off
 @memory/RULES.md
 
-Memory reading is off for this project since {{SINCE}}: don't use memory to answer (don't open, search or cite it for an answer; no recall line). Keep recording: open the session log, `memory/INDEX.md` and the owning topic file only to write to them. `/cortex resume --read --project` turns reading back on.
+Memory reading is off for this project since {{SINCE}}: don't open, search or cite memory for an answer, and write no recall line. Keep recording: open the session log, `memory/INDEX.md` and the owning topic file only to write to them. `/cortex resume --read --project` turns reading back on.
 <!-- CORTEX:END -->
 =====
 

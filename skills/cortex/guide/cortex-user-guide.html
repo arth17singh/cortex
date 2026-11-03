@@ -276,7 +276,7 @@
         <li><strong><code>--project</code>:</strong> no chat in this project records until you run <code>/cortex resume --project</code>. New chats remind you once that recording is off.</li>
         <li>The paused stretch stays out of memory for good, unless you use <code>include-skipped</code>.</li>
       </ul>
-      <p class="text-sm mt-1"><strong>Three switches.</strong> <code>pause</code> stops saving (memory is still read). <code>pause --read</code> stops reading: answers don't use memory, but the chat is still saved. <span class="cmd">/cortex off</span> stops both. Each one takes <code>--project</code> for new chats in the project; with <code>off --project</code> they load nothing at all. Memory that's already in a running chat (the always-loaded part, and anything read earlier) can't be removed, only ignored, so a new chat is the clean slate.</p>
+      <p class="text-sm mt-1"><strong>Three switches.</strong> <code>pause</code> stops saving (memory is still read). <code>pause --read</code> stops reading: answers don't use memory, but the chat is still saved. <span class="cmd">/cortex off</span> stops both. Each one takes <code>--project</code> for new chats in the project; with <code>off --project</code> they load nothing at all. In a running chat, it applies from that point on: Claude stops opening and citing memory and won't bring in anything known only from memory, while what you've already discussed stays usable. For a clean slate, use <code>--project</code> and start a new chat, which loads no memory at all.</p>
       <pre>/cortex pause                 stop saving
 /cortex pause --read          stop reading, keep saving
 /cortex off                   stop both

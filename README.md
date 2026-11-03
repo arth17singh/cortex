@@ -230,7 +230,7 @@ Nothing is installed or changed until you approve it.
 | `/cortex status` | Shows coverage, settings, memory size against budget and warnings |
 | `/cortex save [note]` | Runs a full checkpoint, or stores a note even when paused |
 | `/cortex pause` / `resume` | Stops or restarts **saving** for this chat, or with `--project` for the whole project. Memory is still read |
-| `/cortex pause --read` / `resume --read` | Stops or restarts **reading**: answers don't use memory, but the chat is still saved. With `--project`, new chats load only the rules |
+| `/cortex pause --read` / `resume --read` | Stops or restarts **reading** from that point on: no memory lookups or citations, and nothing known only from memory is brought in, while what's already been discussed stays usable. The chat is still saved. With `--project`, new chats load only the rules, which is a clean slate |
 | `/cortex off` / `on` | Turns CORTEX off entirely: no reading and no saving. With `--project`, new chats load nothing and the hooks go quiet |
 | `/cortex exclude <chat>` / `include <chat>` | Permanently leaves a chat out of memory, or puts it back |
 | `/cortex forget <topic>` | Finds every mention, shows exact deletions, and keeps the topic from coming back |
