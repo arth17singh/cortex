@@ -264,7 +264,7 @@ def main():
     ap.add_argument('--json', action='store_true')
     ap.add_argument('--max', type=int, default=8)
     a = ap.parse_args()
-    root = L.find_root(a.root)
+    root = L.find_root(a.root, explicit=True)
     if not root:
         print('CORTEX: no memory here.')
         return

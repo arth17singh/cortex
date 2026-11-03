@@ -173,7 +173,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--root')
     a = ap.parse_args()
-    root = L.find_root(a.root)
+    root = L.find_root(a.root, explicit=True)
     if root:
         print(json.dumps({'subjects_in_overlay': render(root)}))
 

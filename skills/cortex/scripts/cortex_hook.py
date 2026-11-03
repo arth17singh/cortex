@@ -651,6 +651,8 @@ def stop(data, root):
 
 
 def main():
+    if os.environ.get('CORTEX_NESTED'):   # a CORTEX script's own nested `claude -p`: never recurse
+        return
     try:
         data = json.loads(sys.stdin.read() or '{}')
         root = find_root(data.get('cwd'))

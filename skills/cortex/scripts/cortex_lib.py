@@ -25,9 +25,11 @@ STOP = set('a an and are as at be but by for from has have i if in into is it it
 
 # ------------------------------------------------------------------ paths
 
-def find_root(start=None):
-    """The project root holding CORTEX memory (CLAUDE_PROJECT_DIR wins, then `start`, then cwd)."""
-    for s in (os.environ.get('CLAUDE_PROJECT_DIR'), start, os.getcwd()):
+def find_root(start=None, explicit=False):
+    """The project root holding CORTEX memory. Hooks: CLAUDE_PROJECT_DIR wins, then `start`, then cwd.
+    CLIs given an explicit --root (explicit=True): only `start` is searched, so a script run never writes elsewhere."""
+    env = os.environ.get('CLAUDE_PROJECT_DIR')
+    for s in ((start,) if explicit and start else (env, start, os.getcwd())):
         if not s:
             continue
         p = Path(s).resolve()

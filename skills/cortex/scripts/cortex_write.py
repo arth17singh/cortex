@@ -76,7 +76,7 @@ def main():
     ap.add_argument('--root')
     a = ap.parse_args()
 
-    root = L.find_root(a.root)
+    root = L.find_root(a.root, explicit=True)
     if not root:
         fail(2, error='no CORTEX memory here (memory/INDEX.md not found)')
     if a.type in L.NEEDS_WHY and not (a.why or '').strip():
