@@ -14,7 +14,7 @@
 ## Find: `cortex_search` before you act
 - Messages may arrive with a `CORTEX memory relevant to this message` block (dated records, rejected options, old → new chains). Use it.
 - Before stating a project fact, editing code, or recommending an option, when that block doesn't settle it, run
-  `python3 <skill>/scripts/cortex_search.py "<question>" [--alt "<other wording>"]`. It returns current records, history chains, rejected options, impact ("what depends on X") and connection ("how is A linked to B") from the graph, and evidence as `file:line`. Read around evidence only when you need detail.
+  `python3 <skill>/scripts/cortex_search.py "<question>" [--alt "<other wording>"]` (absolute path; never `cd` into the skill). It returns current records, history chains, rejected options, impact ("what depends on X") and connection ("how is A linked to B") from the graph, and evidence as `file:line`. Read around evidence only when you need detail.
 - **Rejected options:** never re-propose one without saying it was rejected, when, and why.
 - **Not in memory:** when search says no match and nothing loaded covers it, say so plainly. Don't guess.
 - Raw chats last: `<skill>/scripts/ledger_scan.py <project> --grep '<term>'`, then `extract_transcript.py` on a ±20-line window; never grep `.jsonl` directly.
