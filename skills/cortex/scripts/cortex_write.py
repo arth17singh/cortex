@@ -144,6 +144,11 @@ def main():
     }
     L.append_record(root, rec)
     prune_pending(root, statement)
+    try:                                   # keep the graph overlay (GRAPH.md, entities.md) in step with the records
+        import cortex_render
+        cortex_render.render(root)
+    except Exception:
+        pass
     neighbours = sorted({n for s in subjects for n in L.graph(records).get(s, {})})[:8]
     print(json.dumps({'id': rec['id'], 'subjects': subjects, 'supersedes': a.supersedes,
                       'new_subjects': [s for s in subjects if s not in ents], 'related': neighbours},

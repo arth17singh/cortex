@@ -19,7 +19,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-SCRIPT_OWNED = re.compile(r'(^|/)memory/(records\.jsonl|entities\.md|aliases\.json|sessions/README\.md|\.pending\.json|'
+SCRIPT_OWNED = re.compile(r'(^|/)memory/(records\.jsonl|entities\.md|GRAPH\.md|aliases\.json|sessions/README\.md|\.pending\.json|'
                           r'log/capture\.jsonl|'
                           r'[^/]+/_index\.md|[^/]+/[^/]+\.records\.md)$')
 TAG = re.compile(r'\((?:auto )?[0-9a-f]{8}(?: L[\d-]+)?\)|\(code: [^)]+\)|\(r-[0-9a-f]{6}\)')

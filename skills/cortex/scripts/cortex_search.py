@@ -63,7 +63,8 @@ def chunks(root):
     fresh, all_chunks = {}, []
     for f in sorted(mem.rglob('*.md')):
         rel = f.relative_to(root).as_posix()
-        if any(p in SKIP_DIRS for p in f.relative_to(mem).parts) or f.name in ('RULES.md', 'PROTOCOL.md', 'LEDGER.md'):
+        if any(p in SKIP_DIRS for p in f.relative_to(mem).parts) or \
+                f.name in ('RULES.md', 'PROTOCOL.md', 'LEDGER.md', 'GRAPH.md', 'entities.md'):   # generated: records cover them
             continue
         key = [f.stat().st_size, f.stat().st_mtime]
         c = cache.get(rel)
@@ -110,6 +111,10 @@ def chain(rid, by_id, sup):
     return [by_id[i] for i in out if i in by_id]
 
 
+IMPACT_Q = re.compile(r'\b(depends? on|rel(y|ies) on|uses?|affected|breaks?|impact|downstream|if we (drop|remove|'
+                      r'replace|change|switch|deprecate|kill|turn off))\b', re.I)
+PATH_Q = re.compile(r'\b(how (is|are|does)|what(\'s| is) the (link|connection|relationship))\b.*\b(related|connected|'
+                    r'linked|tied|connect|relate)\b', re.I)
 NUMERIC_Q = re.compile(r'\b(how (long|many|much|often|big|fast)|when|what (time|date|version|port|number|size|percent)|'
                        r'which (version|port|date)|how .* take)\b', re.I)
 NUMERIC_A = re.compile(r'\d+(?:[.,:]\d+)*\s*(?:%|ms|s|sec|min|minutes|hours|h|days|weeks|gb|mb|kb|tb|utc|am|pm|x)?\b', re.I)
@@ -185,6 +190,12 @@ def search(root, query, alts=(), max_evidence=8):
                 ranked.append((boost(s, d) * .6, d))
         ranked.sort(reverse=True)
 
+    import cortex_render as R
+    impact = []
+    if linked and IMPACT_Q.search(query):
+        impact = [{'subject': s, 'path': p} for s, p in R.impact(records, linked[0])]
+    connection = R.path(records, linked[0], linked[1]) if len(linked) >= 2 and PATH_Q.search(query) else []
+
     rec_hits = [by_id[d[4:]] for _, d in ranked if d.startswith('rec:')][:12]
     rec_hits += [r for r in records if set(r.get('subjects', [])) & set(linked) and r not in rec_hits]
     current = [r for r in rec_hits if r['id'] not in sup and r['type'] not in ('rejection', 'relation')][:6]
@@ -212,6 +223,7 @@ def search(root, query, alts=(), max_evidence=8):
             'current': current, 'history_chains': [[{'id': r['id'], 'statement': r['statement'],
                                                      'valid_from': r.get('valid_from')} for r in c] for c in chains[:4]],
             'rejected': rejected, 'related': related[:6], 'evidence': evidence,
+            'impact': impact, 'connection': connection,
             'counts': {'sources': len(files) + len(current) + len(rejected), 'lines': lines, 'layers': layers}}
 
 
@@ -231,6 +243,10 @@ def render(p):
         out.append('  history: ' + ' → '.join(f'"{x["statement"]}" ({x["valid_from"]})' for x in c))
     for r in p['rejected']:
         out.append(f'  rejected [{r.get("valid_from")}, {r["id"]}] "{r["statement"]}" — why: {r.get("why")}')
+    for x in p.get('impact', [])[:6]:
+        out.append(f'  impact: {x["subject"]} (' + ' ← '.join(x['path']) + ')')
+    if p.get('connection'):
+        out.append('  connection: ' + ' — '.join(p['connection']))
     for x in p['related'][:4]:
         out.append(f'  related: {x["via"]} — {x["subject"]}' + (f' ({", ".join(x["rels"])})' if x['rels'] else ''))
     for e in p['evidence']:

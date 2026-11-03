@@ -16,6 +16,8 @@ RELS = ('uses', 'depends-on', 'part-of', 'owned-by', 'rejected-for', 'decided-in
 NEEDS_WHY = ('decision', 'rejection')
 # record types that can contradict each other on the same subject
 CLAIMS = {'decision', 'fact', 'status', 'preference', 'rejection'}
+INVERSE = {'uses': 'used by', 'depends-on': 'needed by', 'part-of': 'contains', 'owned-by': 'owns',
+           'rejected-for': 'had rejected', 'decided-in': 'where was decided'}
 STOP = set('a an and are as at be but by for from has have i if in into is it its of on or our so that the their '
            'then there these this to was we were what when which will with you your can should would could do does '
            'did not no yes use used using also just only than very more most about over under after before'.split())
@@ -156,7 +158,7 @@ def graph(records):
             e = g.setdefault(x, {}).setdefault(y, {'weight': 0, 'rels': set()})
             e['weight'] += w
             if rel:
-                e['rels'].add(rel if x == a else f'{rel} (inverse)')
+                e['rels'].add(rel if x == a else INVERSE.get(rel, f'{rel} (inverse)'))
 
     for r in records:
         if not is_current(r, sup):
