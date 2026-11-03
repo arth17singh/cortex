@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "python3 {{SKILL_DIR}}/scripts/cortex_hook.py", "timeout": 10}]}],
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "python3 {{SKILL_DIR}}/scripts/cortex_inject.py", "timeout": 8}]}],
+    "PreToolUse": [{"matcher": "Edit|Write|MultiEdit|Bash|Read|Grep|Glob", "hooks": [{"type": "command", "command": "python3 {{SKILL_DIR}}/scripts/cortex_guard.py", "timeout": 5}]}],
+    "PostToolUse": [{"matcher": "Edit|Write|MultiEdit|Bash", "hooks": [{"type": "command", "command": "python3 {{SKILL_DIR}}/scripts/cortex_guard.py", "timeout": 5}]}],
+    "Stop": [{"hooks": [
+      {"type": "command", "command": "python3 {{SKILL_DIR}}/scripts/cortex_hook.py", "timeout": 10},
+      {"type": "command", "command": "python3 {{SKILL_DIR}}/scripts/cortex_capture.py", "timeout": 5}
+    ]}]
+  }
+}

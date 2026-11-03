@@ -44,18 +44,31 @@ def ancestor_leaks(arm):
     return [h for h in hits if not h.startswith(str(home_claude))]
 
 
-def child_env():
+def arm_settings(arm):
+    """(allow list, env) from the arm's .claude/settings.json. Claude Code ignores a project's permissions.allow in an
+    untrusted folder under -p, so the runner passes them as --allowedTools and the env into the child process."""
+    try:
+        s = json.loads((Path(arm) / '.claude' / 'settings.json').read_text())
+    except (OSError, ValueError):
+        return [], {}
+    return list((s.get('permissions') or {}).get('allow') or []), dict(s.get('env') or {})
+
+
+def child_env(extra=None):
     env = dict(os.environ)
+    env.update(extra or {})
     for k in ('CLAUDE_PROJECT_DIR', 'CORTEX_NESTED'):
         env.pop(k, None)
     env['CLAUDE_CODE_DISABLE_AUTO_MEMORY'] = '1'   # no cross-question leakage via auto memory
     return env
 
 
-def command(args, question):
-    return ['claude', '-p', '--model', args.model, '--setting-sources', 'project',
-            '--no-session-persistence', '--disallowedTools=' + args.disallow,
-            '--output-format', 'stream-json', '--verbose', '--', question]
+def command(args, question, allow=()):
+    """No MCP servers (--strict-mcp-config), no web tools: answers come from the arm's files only."""
+    return (['claude', '-p', '--model', args.model, '--setting-sources', 'project', '--strict-mcp-config',
+             '--no-session-persistence', '--disallowedTools=' + args.disallow]
+            + (['--allowedTools', *allow] if allow else [])
+            + ['--output-format', 'stream-json', '--verbose', '--', question])
 
 
 def parse_stream(path):
@@ -93,7 +106,8 @@ def run_one(q, args, arm, out):
            'exit_code': None, 'error': None}
     t0 = datetime.datetime.now()
     with open(stream, 'wb') as fh:
-        proc = subprocess.Popen(command(args, q['question']), cwd=str(arm), env=child_env(),
+        allow, extra_env = arm_settings(arm)
+        proc = subprocess.Popen(command(args, q['question'], allow), cwd=str(arm), env=child_env(extra_env),
                                 stdin=subprocess.DEVNULL, stdout=fh, stderr=subprocess.PIPE,
                                 start_new_session=True)
         try:
@@ -147,7 +161,7 @@ def main():
     ap.add_argument('--workers', type=int, default=4)
     ap.add_argument('--model', default='sonnet')
     ap.add_argument('--timeout', type=int, default=300)
-    ap.add_argument('--disallow', default='Edit,Write,MultiEdit')
+    ap.add_argument('--disallow', default='Edit,Write,MultiEdit,NotebookEdit,WebSearch,WebFetch')
     ap.add_argument('--force', action='store_true', help='run even if parent dirs hold CLAUDE.md/settings')
     args = ap.parse_args()
 
@@ -180,7 +194,7 @@ def main():
            'claude_version': version, 'claude_path': shutil.which('claude'), 'git_commit': git_commit(),
            'questions': str(Path(args.questions).resolve()), 'ids_run': [q['id'] for q in todo],
            'workers': args.workers, 'timeout_s': args.timeout,
-           'flags': command(args, '<question>')[1:], 'parent_leaks_forced': leaks,
+           'flags': command(args, '<question>', arm_settings(arm)[0])[1:], 'env': arm_settings(arm)[1], 'parent_leaks_forced': leaks,
            'start': now(), 'end': None}
     meta['runs'].append(run)
     atomic_json(meta_path, meta)

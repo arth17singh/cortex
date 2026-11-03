@@ -56,6 +56,15 @@ Reply ONLY JSON: {{"map": {{"<name as given>": "<canonical>"}}}} (only names tha
 
 NAMES:
 {names}"""
+MARK = re.compile(r'\b(supersed\w*|replac\w*|no longer|dropped|is out\b|are out\b|instead of|switched|abandon\w*|'
+                  r'scrapped|obsolete|ruled out|in place of|now uses?|moved (?:from|to))\b', re.I)
+REPLACES = """A newer statement from a project's history appears to say that something earlier no longer holds.
+NEWER ({new_date}): "{new}"
+Candidate earlier records (still marked current):
+{cands}
+Which ONE candidate, if any, does the newer statement make no longer true (dropped, replaced, superseded, changed)?
+Pick none when the newer statement only repeats, adds to, or is unrelated to them.
+Reply ONLY JSON: {{"replaces": "<candidate id>" or null}}"""
 JUDGE = """An earlier project record and a newer statement from a later point in the project history:
 EARLIER ({old_date}): "{old}"
 NEWER ({new_date}): "{new}"
@@ -191,6 +200,45 @@ def write(root, chat, item, date, extra=()):
         return r.returncode, {'error': (r.stdout + r.stderr)[-300:]}
 
 
+def extract(job, subjects):
+    """Items for one window; a timeout (usually rate limiting) is retried once with a longer limit."""
+    err = None
+    for timeout in (180, 360):
+        try:
+            items = model(EXTRACT.format(subjects=json.dumps(subjects), text=job[3]), timeout=timeout).get('items', [])
+            return items if isinstance(items, list) else [{'error': 'items is not a list'}]
+        except subprocess.TimeoutExpired as e:
+            err = e
+        except Exception as e:
+            return [{'error': (type(e).__name__ + ': ' + str(e))[:200]}]
+    return [{'error': ('TimeoutExpired: ' + str(err))[:200]}]
+
+
+def explicit_supersession(root, it, d):
+    """When an item says something earlier no longer holds, find that earlier record among the current ones written
+    so far (writes run in history order) and ask the model which one, if any, it ends. -> (id or None, log entry)."""
+    if it['type'] not in L.CLAIMS or not MARK.search(it['statement']):
+        return None, None
+    records = L.load_records(root)
+    sup = L.superseded_ids(records)
+    cur = [r for r in records if L.is_current(r, sup) and r['type'] in L.CLAIMS and r.get('valid_from', '') <= d]
+    if not cur:
+        return None, None
+    bm = L.BM25([(r['id'], r['statement'] + ' ' + ' '.join(r['subjects'])) for r in cur])
+    top = bm.scores(L.tokens(it['statement'] + ' ' + ' '.join(it['subjects'])))[:4]
+    if not top:
+        return None, None
+    byid = {r['id']: r for r in cur}
+    cands = '\n'.join(f"- {i} ({byid[i].get('valid_from')}, {byid[i]['type']}): \"{byid[i]['statement']}\"" for _, i in top)
+    try:
+        got = model(REPLACES.format(new=it['statement'], new_date=d, cands=cands), timeout=90).get('replaces')
+    except Exception as e:
+        got = None
+        cands += '\n(model error: ' + str(e)[:100] + ')'
+    got = got if got in byid and got in {i for _, i in top} else None
+    return got, {'explicit_supersession': got, 'new': it['statement'], 'candidates': [i for _, i in top], 'date': d}
+
+
 def valid(it):
     """Schema check on a model-extracted item (anything else is logged as invalid, never written)."""
     if isinstance(it, dict) and isinstance(it.get('rel'), list) and len(it['rel']) == 1:
@@ -234,19 +282,20 @@ def main():
         jobs.sort(key=lambda j: (j[0], j[1], j[2]))
         subjects = sorted(L.entities(L.load_records(root)))[:80]
 
-        def run(job):
-            try:
-                items = model(EXTRACT.format(subjects=json.dumps(subjects), text=job[3])).get('items', [])
-                return items if isinstance(items, list) else [{'error': 'items is not a list'}]
-            except Exception as e:
-                return [{'error': (type(e).__name__ + ': ' + str(e))[:200]}]
         with ThreadPoolExecutor(a.workers) as ex:
-            extracted = list(ex.map(run, jobs))
-        with open(cache, 'w', encoding='utf-8') as f:
-            json.dump([{'job': list(j), 'items': x} for j, x in zip(jobs, extracted)], f, ensure_ascii=False)
+            extracted = list(ex.map(lambda j: extract(j, subjects), jobs))
+    # windows whose extraction failed (timeouts under rate limits) are tried again, also when replaying a cache
+    failed = [k for k, x in enumerate(extracted) if x and all(isinstance(e, dict) and 'error' in e for e in x)]
+    if failed:
+        subjects = sorted(L.entities(L.load_records(root)))[:80]
+        with ThreadPoolExecutor(min(a.workers, 3)) as ex:
+            for k, x in zip(failed, ex.map(lambda k: extract(jobs[k], subjects), failed)):
+                extracted[k] = x
+    with open(cache, 'w', encoding='utf-8') as f:
+        json.dump([{'job': list(j), 'items': x} for j, x in zip(jobs, extracted)], f, ensure_ascii=False)
 
     mp = canonicalize(extracted, root, log_path.parent / 'backfill.subjects.json',
-                      Path(a.from_extracted).with_name('backfill.subjects.json') if a.from_extracted else None)
+                      Path(a.from_extracted).with_name('backfill.subjects.json') if a.from_extracted and not failed else None)
     save_aliases(root, mp)
     for items in extracted:
         for it in items:
@@ -255,7 +304,7 @@ def main():
                 it['subjects'] = subs if it.get('type') == 'relation' else list(dict.fromkeys(subs))
 
     stats = {'canonical_renames': len(mp), 'windows': len(jobs), 'model_errors': 0, 'items': 0, 'written': 0, 'duplicate': 0, 'superseded': 0,
-             'coexist': 0, 'judge_calls': 0, 'judge_errors': 0, 'merged_subjects': 0, 'new_near_subjects': 0, 'invalid': 0, 'failed': 0}
+             'coexist': 0, 'explicit_checks': 0, 'explicit_superseded': 0, 'judge_calls': 0, 'judge_errors': 0, 'merged_subjects': 0, 'new_near_subjects': 0, 'invalid': 0, 'failed': 0}
     with open(log_path, 'a', encoding='utf-8') as log:
         for (ts, chat, i, text), items in zip(jobs, extracted):
             errs = [x for x in items if isinstance(x, dict) and 'error' in x and 'statement' not in x]
@@ -271,7 +320,13 @@ def main():
                     continue
                 d = date_of_line(text, line_no(it.get('line')))
                 new = False
-                code, out = write(root, chat, it, d)
+                ends, entry = explicit_supersession(root, it, d)
+                if entry:
+                    stats['explicit_checks'] += 1
+                    log.write(json.dumps(entry, ensure_ascii=False) + '\n')
+                code, out = write(root, chat, it, d, ('--supersedes', ends) if ends else ())
+                if ends and code == 0 and 'duplicate_of' not in out:
+                    stats['explicit_superseded'] += 1
                 if code == 4:
                     sugg, merged = out.get('suggestions') or {}, []
                     for k, s in enumerate(it['subjects']):
@@ -285,7 +340,7 @@ def main():
                     stats['new_near_subjects'] += new
                     log.write(json.dumps({'subject_link': {'merged': merged, 'new_near': new, 'suggestions': sugg},
                                           'chat': chat, 'line': it.get('line')}, ensure_ascii=False) + '\n')
-                    code, out = write(root, chat, it, d, ('--new-subject',) if new else ())
+                    code, out = write(root, chat, it, d, (('--supersedes', ends) if ends else ()) + (('--new-subject',) if new else ()))
                 if code == 3:
                     old = out['conflicts'][0]
                     stats['judge_calls'] += 1

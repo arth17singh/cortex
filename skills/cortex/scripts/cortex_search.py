@@ -136,7 +136,8 @@ def search(root, query, alts=(), max_evidence=8):
     by_id = {r['id']: r for r in records}
     sup = L.superseded_ids(records)
     ents, aliases = L.entities(records), L.load_aliases(root)
-    g = L.graph(records)
+    use_graph = not os.environ.get('CORTEX_NO_GRAPH')      # ablation switch for the eval (records without the graph)
+    g = L.graph(records) if use_graph else {}
     terms = L.tokens(' '.join([query, *alts]))
     linked = link(terms, ' '.join([query, *alts]), ents, aliases)
 
@@ -192,9 +193,10 @@ def search(root, query, alts=(), max_evidence=8):
 
     import cortex_render as R
     impact = []
-    if linked and IMPACT_Q.search(query):
+    if use_graph and linked and IMPACT_Q.search(query):
         impact = [{'subject': s, 'path': p} for s, p in R.impact(records, linked[0])]
-    connection = R.path(records, linked[0], linked[1]) if len(linked) >= 2 and PATH_Q.search(query) else []
+    connection = (R.path(records, linked[0], linked[1])
+                  if use_graph and len(linked) >= 2 and PATH_Q.search(query) else [])
 
     rec_hits = [by_id[d[4:]] for _, d in ranked if d.startswith('rec:')][:12]
     rec_hits += [r for r in records if set(r.get('subjects', [])) & set(linked) and r not in rec_hits]
