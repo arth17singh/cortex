@@ -179,7 +179,8 @@ def main():
           + (f"  ·  last {fresh[0]} ({fresh[1]})" if fresh else ''))
     rules_label = {'current': 'current', 'differs': 'differs from skill', 'v4': 'v4, inline',
                    'broken': 'import missing', 'none': 'no CORTEX block',
-                   'paused': 'paused: new chats load no memory'}[rules_state]
+                   'off': 'CORTEX off: new chats load nothing',
+                   'read-off': 'reading off: new chats load only the rules'}[rules_state]
     print(f"budget     memory {bar(mem_tok, budget)} {mem_tok / 1000:.1f}k / {budget / 1000:.0f}k tok"
           f"  ·  rules {rules_tok / 1000:.1f}k tok ({rules_label})")
     missing, sourced, ranged, nlogs = routing_quality(root)
@@ -253,8 +254,10 @@ def main():
         watch.append(f"{stale[0]} not updated in {stale[1]} days")
     if unverified:
         watch.append(f"{unverified} fact{'s' * (unverified != 1)} still marked unverified")
-    if rules_state == 'paused':
-        watch.append('memory is paused for reading in this project (/cortex resume --read --project)')
+    if rules_state == 'off':
+        watch.append('CORTEX is off for this project: not reading or saving (/cortex on --project)')
+    elif rules_state == 'read-off':
+        watch.append('memory reading is off for this project; saving goes on (/cortex resume --read --project)')
     elif rules_state == 'broken':
         watch.append('the CORTEX block in CLAUDE.md imports a file that does not exist')
     elif rules_state == 'v4':
@@ -283,8 +286,10 @@ def main():
     else:
         print('attention  \u2713 nothing needs attention')
 
-    if rules_state == 'paused':
-        tip = '/cortex resume --read --project  (turn memory back on)'
+    if rules_state == 'off':
+        tip = '/cortex on --project  (turn CORTEX back on)'
+    elif rules_state == 'read-off':
+        tip = '/cortex resume --read --project  (use memory in answers again)'
     elif old_untracked or gaps:
         tip = '/cortex all  (recover unlogged and untracked chats)'
     elif rules_state in ('broken', 'v4', 'differs'):

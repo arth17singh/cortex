@@ -17,12 +17,23 @@ If the CORTEX memory rules are not in your context above, read `memory/RULES.md`
 <!-- CORTEX:END -->
 =====
 
-**Paused stub** (`/cortex pause --read --project`): replaces the block above until `/cortex resume --read --project` puts it back. It imports nothing, so new chats load no memory. Keep `{{SKILL_DIR}}` as it was; fill `{{SINCE}}` with the local date and time.
+**Reading-off stub** (`/cortex pause --read --project`): replaces the block until `/cortex resume --read --project` puts it back. It imports only the rules, so new chats know how to record but load no memory into context. Keep `{{SKILL_DIR}}`; fill `{{SINCE}}` with the local date and time.
 
 =====
 <!-- CORTEX:BEGIN v5 paused-read -->
-## Project memory (CORTEX) · skill: `{{SKILL_DIR}}` · paused
-Memory is paused for this project since {{SINCE}}: don't read, search, cite or write `memory/`. `/cortex resume --read --project` turns it back on.
+## Project memory (CORTEX) · skill: `{{SKILL_DIR}}` · reading off
+@memory/RULES.md
+
+Memory reading is off for this project since {{SINCE}}: don't use memory to answer (don't open, search or cite it for an answer; no recall line). Keep recording: open the session log, `memory/INDEX.md` and the owning topic file only to write to them. `/cortex resume --read --project` turns reading back on.
+<!-- CORTEX:END -->
+=====
+
+**Off stub** (`/cortex off --project`): replaces the block until `/cortex on --project` puts it back. It imports nothing, so new chats neither load nor save memory, and the hooks stay quiet.
+
+=====
+<!-- CORTEX:BEGIN v5 cortex-off -->
+## Project memory (CORTEX) · skill: `{{SKILL_DIR}}` · off
+CORTEX is off for this project since {{SINCE}}: don't read, search, cite or write `memory/`. `/cortex on --project` turns it back on.
 <!-- CORTEX:END -->
 =====
 

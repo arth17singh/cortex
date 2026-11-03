@@ -1,7 +1,7 @@
 ---
 name: cortex
-description: "CORTEX: layered, self-maintaining project memory. Subcommands: start (record from now), upgrade (move a project to the current rules), all (backfill untracked past chats), status, save, pause/resume, exclude/include, forget, recall, audit, selftest, config, help. Use when the user runs /cortex."
-argument-hint: "help | upgrade | start [--from-chat-start] | all [only <chat>] [since DATE] [last N] [exclude X] [include-skipped] [--yes] | status | save [note] | pause [--read] [--project] | resume [--read] [--project] | exclude <chat> | include <chat> | forget <topic> | recall <question> | audit | selftest | config [key=value]"
+description: "CORTEX: layered, self-maintaining project memory. Subcommands: start (record from now), upgrade (move a project to the current rules), all (backfill untracked past chats), status, save, pause/resume, off/on, exclude/include, forget, recall, audit, selftest, config, help. Use when the user runs /cortex."
+argument-hint: "help | upgrade | start [--from-chat-start] | all [only <chat>] [since DATE] [last N] [exclude X] [include-skipped] [--yes] | status | save [note] | pause [--read] [--project] | resume [--read] [--project] | off [--project] | on [--project] | exclude <chat> | include <chat> | forget <topic> | recall <question> | audit | selftest | config [key=value]"
 disable-model-invocation: true
 allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/ledger_scan.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/extract_transcript.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_status.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/selftest.py *)
 ---
@@ -79,17 +79,26 @@ Your entire reply is its output, verbatim, in one code block. Write nothing befo
 - **With a note:** store it in its owning L1 file, with a source tag, and in the session log, even if this chat is paused. Confirm where it went.
 
 ### pause [--read] [--project]
-Plain `pause` stops **recording**; memory is still read. `--read` stops **using memory at all**: no reading, searching, citing or recall lines, and no recording.
-- **This chat (default):** set its current `live` end to <now-1> and add `paused <now>-`. Write nothing else from this chat except `/cortex save <note>`. Confirm: "Paused at line <now>. Other and future chats are unaffected."
-- **`--read` (this chat):** pause as above, and add `reading off` to this chat's ledger Notes cell (create the row if needed). From now on in this chat, answer as if memory didn't exist: don't open, grep or cite `memory/`, write no recall line, and ignore memory already in context. Confirm: "Memory off for this chat from line <now>: not read, not written. `/cortex resume --read` turns it back on."
+Three switches: `pause` stops **saving** (memory is still read), `pause --read` stops **reading** (saving goes on), and `off` stops both.
+- **This chat (default):** set its current `live` end to <now-1> and add `paused <now>-`. Write nothing else from this chat except `/cortex save <note>`. Confirm: "Saving paused at line <now>; memory is still read. Other and future chats are unaffected."
 - **`--project`:** set the index line to `Recording: paused (was <mode>) since <YYYY-MM-DD HH:MM>`, add `paused <now>-` to every row with an open live range (`<now>` = that chat's `wc -l`), then confirm. New chats in this project don't record; reading still works.
-- **`--read --project`:** do the `--project` pause, then replace the CORTEX block in `CLAUDE.md` with the paused stub from `${CLAUDE_SKILL_DIR}/reference/claude-block.md` (keep the skill path). New chats load no memory, and the hooks stay quiet apart from one start line. Confirm: "Memory off for new chats in this project. This chat still has it loaded; `/cortex pause --read` stops using it here too. `/cortex resume --read --project` restores it." 
+- **`--read` (this chat):** add `reading off` to this chat's ledger Notes cell (create the row if needed); recording is unchanged. From now on, don't use memory to answer: don't open, grep or cite it for an answer, write no recall line, and ignore memory already in context when answering. Still record as usual: open the session log, the index and the owning topic file only to write to them. Confirm: "Reading off for this chat from line <now>; still saving. `/cortex resume --read` turns reading back on."
+- **`--read --project`:** replace the CORTEX block in `CLAUDE.md` with the reading-off stub from `${CLAUDE_SKILL_DIR}/reference/claude-block.md` (keep the skill path). New chats load only the rules and keep recording. Confirm, and say that this chat still has memory loaded (`/cortex pause --read` covers it).
 
 ### resume [--read] [--project]
 - **This chat:** close the pause as `paused <a>-<now-1>` and append a new segment `live <now>-<now>`. Never extend a live range across a pause.
-- **`--read` (this chat):** resume as above and remove `reading off` from the Notes cell. Memory is used again from this point.
 - **`--project`:** restore the `was <mode>` value and close open pauses at each chat's current `wc -l`.
-- **`--read --project`:** put the normal stub from `${CLAUDE_SKILL_DIR}/reference/claude-block.md` back in place of the paused stub (same skill path), then resume `--project`. Tell the user that new chats load memory again, and that this chat started without it, so a new chat is the clean way back.
+- **`--read` (this chat):** remove `reading off` from the Notes cell. Memory is used in answers again from this point.
+- **`--read --project`:** put the normal stub from `${CLAUDE_SKILL_DIR}/reference/claude-block.md` back in place of the reading-off stub (same skill path). New chats load memory again.
+
+### off [--project]
+Turn CORTEX off: no reading and no saving.
+- **This chat (default):** pause saving as in `pause`, and add `cortex off` to the Notes cell. Answer as if memory didn't exist, and ignore memory already in context. Confirm: "CORTEX off for this chat from line <now>: not reading, not saving. `/cortex on` turns it back on."
+- **`--project`:** do `pause --project`, then replace the CORTEX block with the off stub from `${CLAUDE_SKILL_DIR}/reference/claude-block.md`. New chats load nothing and the hooks stay quiet apart from one start line. Confirm, and say that this chat still has memory loaded (`/cortex off` covers it).
+
+### on [--project]
+- **This chat:** resume saving as in `resume`, and remove `cortex off` from the Notes cell.
+- **`--project`:** put the normal stub back in place of the off stub (same skill path), then `resume --project`. Tell the user that new chats load memory again, and that a new chat is the clean way back.
 
 ### exclude <chat>
 Permanently leave a chat out of memory. The chat can be named by id prefix, date, or description.

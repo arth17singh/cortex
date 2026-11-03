@@ -276,20 +276,20 @@
         <li><strong><code>--project</code>:</strong> no chat in this project records until you run <code>/cortex resume --project</code>. New chats remind you once that recording is off.</li>
         <li>The paused stretch stays out of memory for good, unless you use <code>include-skipped</code>.</li>
       </ul>
-      <p class="text-sm mt-1"><strong><code>--read</code>: turn memory off entirely.</strong> Claude stops reading, searching and citing memory too, not only recording. In this chat, memory that's already loaded is ignored from then on. With <code>--project</code>, new chats load no memory at all (a clean slate), and the hooks stay quiet. Undo with <code>/cortex resume --read</code> (add <code>--project</code> if you paused the project).</p>
-      <pre>/cortex pause
-/cortex pause --project
-/cortex pause --read
-/cortex pause --read --project</pre>
+      <p class="text-sm mt-1"><strong>Three switches.</strong> <code>pause</code> stops saving (memory is still read). <code>pause --read</code> stops reading: answers don't use memory, but the chat is still saved. <span class="cmd">/cortex off</span> stops both. Each one takes <code>--project</code> for new chats in the project; with <code>off --project</code> they load nothing at all. Memory that's already in a running chat (the always-loaded part, and anything read earlier) can't be removed, only ignored, so a new chat is the clean slate.</p>
+      <pre>/cortex pause                 stop saving
+/cortex pause --read          stop reading, keep saving
+/cortex off                   stop both
+/cortex off --project         new chats load nothing</pre>
     </div></article>
 
     <article class="card bg-base-200" id="cmd-resume"><div class="card-body p-5">
       <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex resume</h4></div>
       <p><strong>Starts recording again.</strong> In this chat by default, or project-wide with <code>--project</code> (which restores the mode you had before).</p>
       <pre>/cortex resume
-/cortex resume --project
 /cortex resume --read
-/cortex resume --read --project</pre>
+/cortex on
+/cortex on --project</pre>
     </div></article>
 
     <article class="card bg-base-200" id="cmd-exclude"><div class="card-body p-5">

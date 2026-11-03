@@ -229,8 +229,9 @@ Nothing is installed or changed until you approve it.
 | `/cortex all [options]` | Backfills untracked past chats. It's safe to re-run. Options: `only <chat>`, `since DATE`, `last N`, `exclude X`, `include-skipped`, `--yes` |
 | `/cortex status` | Shows coverage, settings, memory size against budget and warnings |
 | `/cortex save [note]` | Runs a full checkpoint, or stores a note even when paused |
-| `/cortex pause` / `resume` | Stops or restarts recording for this chat, or with `--project` for the whole project. Memory is still read |
-| `/cortex pause --read` / `resume --read` | Turns memory off entirely for this chat (no reading, citing or recording), or with `--project` for new chats in the project, which then load no memory at all |
+| `/cortex pause` / `resume` | Stops or restarts **saving** for this chat, or with `--project` for the whole project. Memory is still read |
+| `/cortex pause --read` / `resume --read` | Stops or restarts **reading**: answers don't use memory, but the chat is still saved. With `--project`, new chats load only the rules |
+| `/cortex off` / `on` | Turns CORTEX off entirely: no reading and no saving. With `--project`, new chats load nothing and the hooks go quiet |
 | `/cortex exclude <chat>` / `include <chat>` | Permanently leaves a chat out of memory, or puts it back |
 | `/cortex forget <topic>` | Finds every mention, shows exact deletions, and keeps the topic from coming back |
 | `/cortex recall <question>` | Answers from memory with citations and a confidence level |

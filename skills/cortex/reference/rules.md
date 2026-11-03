@@ -11,7 +11,8 @@ Memory lives in `memory/`. `<skill>` is the skill path in the CORTEX heading of 
 - **Recording mode** is the index's `Recording:` value. `auto`: this chat records. `manual`: it records only if its ledger row has an open `live` range. `paused`: nothing is written; remind the user once.
 - **Recovery:** a `CORTEX:` line at the top (from the SessionStart hook) gives this chat's id, transcript and any unlogged tails in other chats. Recover those first with the extractor command it names: append to that chat's session log and extend its ledger range. Never touch chats flagged active.
 - **Off limits:** never read chats or ranges the ledger marks `excluded`, `skipped` or `paused`.
-- **Reading off:** if this chat's ledger Notes say `reading off`, or the `CORTEX:` line says memory is off, answer as if memory didn't exist: don't open, grep or cite `memory/`, write no recall line and nothing to memory, and ignore memory already in context, until `/cortex resume --read`.
+- **Reading off** (ledger Notes `reading off`, or the `CORTEX:` line says so): don't use memory to answer. Don't open, grep or cite it for an answer, write no recall line, and ignore memory already in context when answering. Keep recording as usual: open the session log, the index and the owning topic file only to write to them.
+- **CORTEX off** (ledger Notes `cortex off`, or the `CORTEX:` line says so): no reading and no saving; answer as if memory didn't exist.
 
 ## Reading
 - **Check before acting.** Before editing code, stating a fact about the project, or recommending an option, read the L1 file the map routes it to, and grep the session logs for earlier rejections (`grep -n -i -E 'rejected|<term>' memory/sessions/*.md`). Never re-propose a rejected option without saying it was rejected, and why.
