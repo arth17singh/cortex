@@ -178,7 +178,8 @@ def main():
     print(f"activity   {spark}  {writes} memory file{'s' * (writes != 1)} touched in 7 days"
           + (f"  ·  last {fresh[0]} ({fresh[1]})" if fresh else ''))
     rules_label = {'current': 'current', 'differs': 'differs from skill', 'v4': 'v4, inline',
-                   'broken': 'import missing', 'none': 'no CORTEX block'}[rules_state]
+                   'broken': 'import missing', 'none': 'no CORTEX block',
+                   'paused': 'paused: new chats load no memory'}[rules_state]
     print(f"budget     memory {bar(mem_tok, budget)} {mem_tok / 1000:.1f}k / {budget / 1000:.0f}k tok"
           f"  ·  rules {rules_tok / 1000:.1f}k tok ({rules_label})")
     missing, sourced, ranged, nlogs = routing_quality(root)
@@ -252,7 +253,9 @@ def main():
         watch.append(f"{stale[0]} not updated in {stale[1]} days")
     if unverified:
         watch.append(f"{unverified} fact{'s' * (unverified != 1)} still marked unverified")
-    if rules_state == 'broken':
+    if rules_state == 'paused':
+        watch.append('memory is paused for reading in this project (/cortex resume --read --project)')
+    elif rules_state == 'broken':
         watch.append('the CORTEX block in CLAUDE.md imports a file that does not exist')
     elif rules_state == 'v4':
         watch.append('this project uses the v4 rules layout')
@@ -280,7 +283,9 @@ def main():
     else:
         print('attention  \u2713 nothing needs attention')
 
-    if old_untracked or gaps:
+    if rules_state == 'paused':
+        tip = '/cortex resume --read --project  (turn memory back on)'
+    elif old_untracked or gaps:
         tip = '/cortex all  (recover unlogged and untracked chats)'
     elif rules_state in ('broken', 'v4', 'differs'):
         tip = '/cortex upgrade  (move this project to the current rules)'

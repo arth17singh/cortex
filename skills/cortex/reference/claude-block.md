@@ -17,6 +17,15 @@ If the CORTEX memory rules are not in your context above, read `memory/RULES.md`
 <!-- CORTEX:END -->
 =====
 
+**Paused stub** (`/cortex pause --read --project`): replaces the block above until `/cortex resume --read --project` puts it back. It imports nothing, so new chats load no memory. Keep `{{SKILL_DIR}}` as it was; fill `{{SINCE}}` with the local date and time.
+
+=====
+<!-- CORTEX:BEGIN v5 paused-read -->
+## Project memory (CORTEX) · skill: `{{SKILL_DIR}}` · paused
+Memory is paused for this project since {{SINCE}}: don't read, search, cite or write `memory/`. `/cortex resume --read --project` turns it back on.
+<!-- CORTEX:END -->
+=====
+
 **Inline fallback** (`/cortex config rules=inline`, for tools that don't follow `@` imports): replace the `@memory/RULES.md` line with the full contents of `memory/RULES.md`.
 
 Don't put the stub in `AGENTS.md` or other tools' instruction files: they may not follow `@` imports. Leave such files as they are and mention them to the user.

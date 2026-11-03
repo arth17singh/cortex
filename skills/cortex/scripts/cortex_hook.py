@@ -56,6 +56,23 @@ def recording_mode(root):
     return 'auto (no Recording line)'
 
 
+def read_paused(root):
+    """True when `/cortex pause --read --project` swapped the CLAUDE.md block for its paused stub."""
+    return 'paused-read' in cortex_block(root)[:60]
+
+
+def reading_off(root, session_id):
+    """True when this chat's ledger Notes say `reading off` (`/cortex pause --read`)."""
+    short = session_id[:8]
+    if len(short) < 8:
+        return False
+    for row in (root / 'memory' / 'LEDGER.md').read_text(encoding='utf-8', errors='replace').splitlines():
+        cells = [c.strip() for c in row.strip().strip('|').split('|')]
+        if len(cells) >= 6 and cells[0].strip('`').startswith(short):
+            return 'reading off' in cells[5].lower()
+    return False
+
+
 def ledger_row(root, session_id):
     """Return (state, ranges_text) for this chat, or (None, '')."""
     short = session_id[:8]
@@ -166,6 +183,8 @@ def l0_parts(root):
     rules_file, master = mem / 'RULES.md', HERE.parent / 'reference' / 'rules.md'
     if not block:
         state = 'none'
+    elif 'paused-read' in block[:60]:
+        state = 'paused'
     elif missing:
         state = 'broken'
     elif not rules_file.is_file():
@@ -457,6 +476,20 @@ def l1_health(root, days=30):
 
 def session_start(data, root):
     sid, tp = data.get('session_id', ''), data.get('transcript_path', '')
+    off = None
+    if read_paused(root):
+        off = ('project', "CORTEX: memory is paused for this project (/cortex pause --read --project). Don't read, "
+               "search, cite or write memory/ unless the user runs /cortex resume --read --project.")
+    elif reading_off(root, sid):
+        off = ('chat', "CORTEX: memory is off for this chat (/cortex pause --read): answer as if memory didn't exist; "
+               "don't read, search, cite or write memory/, and ignore memory already in context, until /cortex resume --read.")
+    if off:
+        out = {'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': off[1]}}
+        if logs_enabled(root):
+            out['systemMessage'] = (f"\u25cc CORTEX off for this {off[0]}  \u00b7  memory not used  \u00b7  "
+                                    f"/cortex resume --read{' --project' if off[0] == 'project' else ''}")
+        print(json.dumps(out))
+        return
     mode = recording_mode(root)
     state, rtext = ledger_row(root, sid)
     scan, gaps = {}, []
@@ -570,7 +603,7 @@ def nudge(root, sid, tp):
 
 
 def stop(data, root):
-    if data.get('stop_hook_active'):
+    if data.get('stop_hook_active') or read_paused(root):
         return
     sid, tp = data.get('session_id', ''), data.get('transcript_path', '')
     if not sid:
