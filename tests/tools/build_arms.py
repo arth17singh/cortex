@@ -19,7 +19,7 @@ REPO = Path(__file__).resolve().parents[2]
 REAL = REPO / 'tests' / 'eval-data' / 'real'
 V5_SKILL = Path.home() / '.claude' / 'skills' / 'cortex'
 READ_ONLY = ['Bash(grep:*)', 'Bash(rg:*)', 'Bash(head:*)', 'Bash(tail:*)', 'Bash(sed -n:*)', 'Bash(cat:*)',
-             'Bash(wc:*)', 'Bash(ls:*)', 'Bash(find:*)']
+             'Bash(wc:*)', 'Bash(ls:*)', 'Bash(find:*)', 'Bash(cd:*)']
 
 
 def settings(path, hooks=None, allow=(), env=None):
@@ -37,7 +37,8 @@ def hook(cmd, timeout=10):
 
 
 def script_allow(skill, names):
-    return [f'Bash(python3 {skill}/scripts/{n}:*)' for n in names]
+    # wildcard on both sides: Claude calls scripts by absolute or relative path, after `cd`, or piped into head
+    return [f'Bash(python3 *{n}*)' for n in names]
 
 
 def v7_arm(dst, src, skill, graph):
