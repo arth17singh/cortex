@@ -119,7 +119,7 @@ DEFINE_Q = re.compile(r'\bwhat (?:is|are|does|do)\s+[`"]?([\w./-]+(?:\s+[\w./-]+
 COMMON = set('take takes took control controls mean means work works happen change changes need needs want make keep '
              'start stop run runs set get gets give show tell know think plan plans used doing going right wrong good '
              'best better still again ever now today later earlier first last next long time times expire expires '
-             'remind decide decided choose chose pick picked happened current currently'.split())
+             'remind decide decided choose chose pick picked happened current currently consider considered'.split())
 
 
 def bigrams(terms):

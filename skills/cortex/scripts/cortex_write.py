@@ -14,7 +14,7 @@ Prints JSON. Exit codes:
   4  a subject is new but close to existing ones: re-run with the existing name, or --new-subject
 The PreToolUse hook adds --session and --line from the chat, so provenance is never typed by hand.
 """
-import argparse, json, sys
+import argparse, json, os, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -24,6 +24,38 @@ import cortex_lib as L  # noqa: E402
 def fail(code, **payload):
     print(json.dumps(payload, ensure_ascii=False, indent=1))
     sys.exit(code)
+
+
+def conflict_threshold(new, old):
+    """How similar two claims on a shared subject must be before one may contradict the other.
+
+    Two decisions on a subject usually compete; two facts or statuses only if they say nearly the same thing
+    (an update); a rejection contradicts a decision only when it rejects that very option.
+    """
+    pair = {new, old}
+    if pair == {'decision'}:
+        return .25
+    if pair <= {'fact', 'status'}:
+        return .35
+    if pair == {'decision', 'rejection'}:
+        return .6
+    if pair == {'rejection'}:
+        return .5
+    return .5
+
+
+def prune_pending(root, statement):
+    """Drop queued (extracted, conflicting) items that this write resolves."""
+    pend = Path(root) / 'memory' / '.pending.json'
+    try:
+        items = json.loads(pend.read_text())
+    except (OSError, ValueError):
+        return
+    keep = [p for p in items if L.overlap((p.get('item') or {}).get('statement', ''), statement) < .6]
+    if len(keep) != len(items):
+        tmp = pend.with_suffix('.tmp')
+        tmp.write_text(json.dumps(keep, ensure_ascii=False, indent=1))
+        os.replace(tmp, pend)
 
 
 def main():
@@ -95,8 +127,7 @@ def main():
                 if r.get('subjects', [None])[0] == subjects[0] and r.get('rel') == a.rel:
                     conflicts.append(r)
             elif a.type in L.CLAIMS and r['type'] in L.CLAIMS:
-                same_family = (a.type == r['type']) or {a.type, r['type']} <= {'decision', 'rejection', 'status', 'fact'}
-                if same_family and (L.overlap(r['statement'], statement) >= .2 or shared == set(subjects)):
+                if L.overlap(r['statement'], statement) >= conflict_threshold(a.type, r['type']):
                     conflicts.append(r)
         if conflicts:
             fail(3, error='may conflict with current records', conflicts=[
@@ -112,6 +143,7 @@ def main():
         'provenance': a.provenance, 'recorded_at': L.now_iso(),
     }
     L.append_record(root, rec)
+    prune_pending(root, statement)
     neighbours = sorted({n for s in subjects for n in L.graph(records).get(s, {})})[:8]
     print(json.dumps({'id': rec['id'], 'subjects': subjects, 'supersedes': a.supersedes,
                       'new_subjects': [s for s in subjects if s not in ents], 'related': neighbours},
