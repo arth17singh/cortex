@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 tests/eval-data/
 CLAUDE.local.md
+tests/results/
