@@ -180,7 +180,7 @@ def main():
         data = json.loads(sys.stdin.read() or '{}')
         import cortex_lib as L
         root = L.find_root(data.get('cwd'))
-        if not root or not (root / 'memory' / 'LEDGER.md').is_file():
+        if not root or not (root / 'memory' / 'LEDGER.md').is_file() or not L.is_v7(root):
             return
         try:
             import cortex_hook as H

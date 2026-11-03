@@ -98,6 +98,30 @@ def link(query_terms, query, ents, aliases):
     return sorted(found, key=lambda s: -found[s])
 
 
+def link_weak(query_terms, ents, idf, already):
+    """Subjects only partly named (paraphrase): most of the subject's rare-word weight is in the question."""
+    qs = set(query_terms)
+    out = {}
+    for s in ents:
+        if s in already:
+            continue
+        st = [t for t in dict.fromkeys(L.tokens(s)) if t not in COMMON]
+        if len(st) < 2:
+            continue
+        w = {t: idf.get(t, 0) for t in st}
+        hit = sum(v for t, v in w.items() if t in qs)
+        if hit and hit / (sum(w.values()) or 1) >= .6 and any(t in qs and len(t) > 3 for t in st):
+            out[s] = hit
+    return sorted(out, key=lambda s: -out[s])
+
+
+def clauses(query):
+    """A multi-part question split into its parts, so every part gets at least one hit."""
+    parts = re.split(r'\?|;|,? and (?=(?:what|why|how|which|who|when|where|is|are|does|did|do|was|were|would|will)\b)',
+                     query, flags=re.I)
+    return [p.strip() for p in parts if len(L.tokens(p)) >= 3]
+
+
 def chain(rid, by_id, sup):
     """The full old → new chain a record belongs to."""
     back = {v: k for k, v in sup.items()}       # new -> old
@@ -111,8 +135,9 @@ def chain(rid, by_id, sup):
     return [by_id[i] for i in out if i in by_id]
 
 
-IMPACT_Q = re.compile(r'\b(depends? on|rel(y|ies) on|uses?|affected|breaks?|impact|downstream|if we (drop|remove|'
-                      r'replace|change|switch|deprecate|kill|turn off))\b', re.I)
+IMPACT_Q = re.compile(r'\b(depends? on|depend|rel(y|ies) on|uses?|needs?|affect\w*|break\w*|impact\w*|downstream|fail\w*|'
+                      r'without|remov\w*|lose|los(t|ing)|stop\w*|go(es)? down|what else|knock-on|if (we|it|they|the)\b.*'
+                      r'\b(drop|remove|replace|change|switch|deprecate|kill|turn off|fail|went|go)\w*)\b', re.I)
 PATH_Q = re.compile(r'\b(how (is|are|does)|what(\'s| is) the (link|connection|relationship))\b.*\b(related|connected|'
                     r'linked|tied|connect|relate)\b', re.I)
 NUMERIC_Q = re.compile(r'\b(how (long|many|much|often|big|fast)|when|what (time|date|version|port|number|size|percent)|'
@@ -140,6 +165,7 @@ def search(root, query, alts=(), max_evidence=8):
     g = L.graph(records) if use_graph else {}
     terms = L.tokens(' '.join([query, *alts]))
     linked = link(terms, ' '.join([query, *alts]), ents, aliases)
+    strong_linked = list(linked)
 
     docs = [(f'rec:{r["id"]}', ' '.join([r['statement'], r.get('why') or '', ' '.join(r.get('subjects', [])),
                                           r['type'], r.get('rel') or ''])) for r in records]
@@ -147,6 +173,28 @@ def search(root, query, alts=(), max_evidence=8):
     docs += [(f'chk:{i}', f'{rel} {t}') for i, (rel, k, ln, t) in enumerate(text_chunks)]
     bm = L.BM25(docs, b=.5)
     scored = bm.scores(terms)
+    linked += link_weak(terms, ents, bm.idf, set(linked))[:3]
+    # every part of a multi-part question gets its own hits: each clause's best doc is lifted to ~0.8 of the top
+    top_full = scored[0][0] if scored else 0
+    parts = clauses(' '.join([query, *alts]))
+    if len(parts) >= 2 and top_full:
+        lift = {}
+        for c in parts:
+            cs = bm.scores(L.tokens(c))
+            for sc, d in cs[:4]:
+                lift[d] = max(lift.get(d, 0), .8 * top_full * sc / cs[0][0])
+        base = dict((d, sc) for sc, d in scored)
+        for d, v in lift.items():
+            base[d] = max(base.get(d, 0), v)
+        scored = sorted(((sc, d) for d, sc in base.items()), reverse=True)
+    named = list(linked)                                    # subjects the question itself names (fully or mostly)
+    # subjects of the best-matching records join for ranking and graph lookups (paraphrased questions), but never
+    # decide relevance or abstention: that stays with what the question names
+    for sc, d in scored[:6]:
+        if d.startswith('rec:') and len(linked) < 5:
+            for sj in by_id[d[4:]].get('subjects', []):
+                if sj not in linked and len(linked) < 5:
+                    linked.append(sj)
     max_possible = sum(bm.idf.get(t, 0) for t in set(terms)) or 1
     missing = [t for t in dict.fromkeys(terms) if t not in bm.idf and len(t) > 3 and t not in COMMON]
     q_bi = bigrams(L.tokens(query))
@@ -194,9 +242,23 @@ def search(root, query, alts=(), max_evidence=8):
     import cortex_render as R
     impact = []
     if use_graph and linked and IMPACT_Q.search(query):
-        impact = [{'subject': s, 'path': p} for s, p in R.impact(records, linked[0])]
-    connection = (R.path(records, linked[0], linked[1])
-                  if use_graph and len(linked) >= 2 and PATH_Q.search(query) else [])
+        for s0 in linked[:3]:
+            impact = [{'subject': s, 'path': p} for s, p in R.impact(records, s0)]
+            if impact:
+                break
+    connection = []
+    if use_graph and len(linked) >= 2:                      # how the subjects the question names are connected
+        for a_, b_ in [(x, y) for i, x in enumerate(linked[:4]) for y in linked[i + 1:4]]:
+            pth = R.path(records, a_, b_)
+            if pth and len(pth) >= 3 and (PATH_Q.search(query) or a_ in strong_linked or b_ in strong_linked):
+                connection = pth
+                break
+    relations = []
+    if use_graph:                                           # typed links of the linked subjects, both directions
+        for r in records:
+            if r['type'] == 'relation' and r['id'] not in sup and set(r['subjects']) & set(linked[:3]):
+                relations.append(r)
+        relations = relations[:8]
 
     rec_hits = [by_id[d[4:]] for _, d in ranked if d.startswith('rec:')][:12]
     rec_hits += [r for r in records if set(r.get('subjects', [])) & set(linked) and r not in rec_hits]
@@ -215,17 +277,17 @@ def search(root, query, alts=(), max_evidence=8):
             evidence.append({'file': rel, 'line': ln, 'kind': k, 'score': round(s, 2), 'text': t[:500]})
 
     strength = (ranked[0][0] / max_possible) if ranked else 0
-    abstain = not ranked or (not linked and strength < .15 and not current)
+    abstain = not ranked or (not named and strength < .15 and not current)
     files = {e['file'] for e in evidence} | {'memory/records.jsonl' for _ in (current + rejected)[:1]}
     lines = sum(min(len(e['text'].split('\n')), 30) for e in evidence) + len(current) + len(rejected)
     layers = sorted({'L0' if e['kind'] == 'map' else 'L1' if e['kind'] == 'topic' else 'L2' for e in evidence}
                     | ({'records'} if current or rejected else set()))
-    return {'query': query, 'linked_subjects': linked, 'abstain': abstain, 'strength': round(strength, 2),
+    return {'query': query, 'linked_subjects': named, 'context_subjects': [x for x in linked if x not in named], 'abstain': abstain, 'strength': round(strength, 2),
             'missing_terms': missing,
             'current': current, 'history_chains': [[{'id': r['id'], 'statement': r['statement'],
                                                      'valid_from': r.get('valid_from')} for r in c] for c in chains[:4]],
             'rejected': rejected, 'related': related[:6], 'evidence': evidence,
-            'impact': impact, 'connection': connection,
+            'impact': impact, 'connection': connection, 'relations': relations,
             'counts': {'sources': len(files) + len(current) + len(rejected), 'lines': lines, 'layers': layers}}
 
 
@@ -240,7 +302,8 @@ def render(p):
                    'these, it may not be in memory, or try other words with --alt')
     for r in p['current']:
         why = f' — why: {r["why"]}' if r.get('why') else ''
-        out.append(f'  current [{r["type"]}, {r.get("valid_from")}, {r["id"]}] "{r["statement"]}"{why}')
+        kind = 'open, unconfirmed' if r['type'] == 'open' else r['type']
+        out.append(f'  current [{kind}, {r.get("valid_from")}, {r["id"]}] "{r["statement"]}"{why}')
     for c in p['history_chains']:
         out.append('  history: ' + ' → '.join(f'"{x["statement"]}" ({x["valid_from"]})' for x in c))
     for r in p['rejected']:
@@ -249,6 +312,8 @@ def render(p):
         out.append(f'  impact: {x["subject"]} (' + ' ← '.join(x['path']) + ')')
     if p.get('connection'):
         out.append('  connection: ' + ' — '.join(p['connection']))
+    for r in p.get('relations', []):
+        out.append(f'  link [{r.get("valid_from")}, {r["id"]}] {r["subjects"][0]} {r.get("rel")} {r["subjects"][1]}: "{r["statement"]}"')
     for x in p['related'][:4]:
         out.append(f'  related: {x["via"]} — {x["subject"]}' + (f' ({", ".join(x["rels"])})' if x['rels'] else ''))
     for e in p['evidence']:

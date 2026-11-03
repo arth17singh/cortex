@@ -187,7 +187,12 @@ def l0_parts(root):
         text = path.read_text(encoding='utf-8', errors='replace')
         rules += len(text.encode())
         todo += [(t, hop + 1) for t in imports(text, path.parent)]
-    rules_file, master = mem / 'RULES.md', HERE.parent / 'reference' / 'rules.md'
+    # a v5 project is compared with the v5 rules the skill still ships, so installing v7 doesn't flag every v5
+    # project as out of date; `/cortex upgrade` (cortex_upgrade.py) moves a project to v7
+    v7 = bool(block) and block.lstrip().startswith('<!-- CORTEX:BEGIN v7')
+    rules_file = mem / 'RULES.md'
+    master = HERE.parent / 'reference' / ('rules.md' if v7 or not (HERE.parent / 'reference' / 'rules-v5.md').is_file()
+                                          else 'rules-v5.md')
     if not block:
         state = 'none'
     elif 'cortex-off' in block[:60]:

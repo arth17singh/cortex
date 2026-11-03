@@ -18,6 +18,31 @@ NEEDS_WHY = ('decision', 'rejection')
 CLAIMS = {'decision', 'fact', 'status', 'preference', 'rejection'}
 INVERSE = {'uses': 'used by', 'depends-on': 'needed by', 'part-of': 'contains', 'owned-by': 'owns',
            'rejected-for': 'had rejected', 'decided-in': 'where was decided'}
+# What and how to extract: shared by the transcript backfill and the live capture hook, so both write alike.
+# Shaped by the 2026-11-02 failure analysis: details inside long replies, list members, derived numbers, trailing
+# caveats and consequences were being dropped, and proposals were stored as decisions.
+EXTRACT_GUIDE = """What to keep: anything a teammate would want weeks later: decisions and why, options rejected and why,
+project facts (numbers, names, versions, ports, paths, dates, owners, measurements), the user's preferences, status
+changes, lessons, open questions, and how components connect. Skip chit-chat, generic explanations and tool noise.
+How to write items:
+- One claim per item, one self-contained sentence. Look inside long replies too: details there are often the
+  ones asked about later.
+- Keep every member of a list (options, steps, components, criteria, numbers): one item each, or one item that
+  names them all.
+- Keep exact numbers with units, names, versions, paths, ports and dates, including derived figures (totals,
+  counts, durations, budgets).
+- Keep caveats and conditions inside the statement ("only if ...", "unverified", "estimated, not measured").
+- Keep consequences: when changing, removing or failing X would affect Y, say so.
+- Status comes from the user. Type `decision` only when the user chose or confirmed it, or it was built or done.
+  An assistant suggestion not yet accepted is type `open`, its statement starting "Proposed:". An option the user
+  or the chat ruled out is a `rejection` with why.
+- When a line answers an earlier open question or replaces an earlier plan, say so in the statement.
+- Relations: whenever the text says X uses, depends on, is part of, or is owned by Y, or was rejected for Y, add a
+  `relation` item (subjects exactly [X, Y], rel = uses|depends-on|part-of|owned-by|rejected-for|decided-in) as
+  well as the fact itself.
+- subjects: 1-3 things the item is about (a named product, service, component, file, person, team or event) by
+  the shortest common name. Aspects (deadline, rules, cost, setup) go in the statement, not the subject."""
+
 STOP = set('a an and are as at be but by for from has have i if in into is it its of on or our so that the their '
            'then there these this to was we were what when which will with you your can should would could do does '
            'did not no yes use used using also just only than very more most about over under after before'.split())
@@ -37,6 +62,15 @@ def find_root(start=None, explicit=False):
             if (d / 'memory' / 'INDEX.md').is_file():
                 return d
     return None
+
+
+def is_v7(root):
+    """True when the project's CLAUDE.md carries the v7 CORTEX block. The v7-only hooks (inject, guard, capture)
+    stay silent in v5 projects, so a global install changes nothing there until `/cortex upgrade`."""
+    try:
+        return '<!-- CORTEX:BEGIN v7' in (Path(root) / 'CLAUDE.md').read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return False
 
 
 def records_path(root):
