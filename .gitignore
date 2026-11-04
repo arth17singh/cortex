@@ -5,9 +5,7 @@ tests/eval-data/
 CLAUDE.local.md
 tests/results/
 
-# build notes and plans that mention the private eval project: kept local, never pushed
+# build notes that mention the private eval project: kept local, never pushed
 tests/HANDOFF.md
 tests/PROGRESS.md
 tests/RESULTS-*.md
-docs/plans/
-docs/v7-plan.md
