@@ -49,6 +49,26 @@ NEGATIVE_RULE = """- This is a NEGATIVE question: it asks about a link or fact t
 """
 
 
+TASK_RULE = """- This is a TASK question: the user asked the assistant to do something, and the project history holds a
+  constraint, convention, rejection or prior decision that bears on it. The key facts are what a good response
+  must do (honour or raise that constraint). Set contradiction=true if the candidate does what the MUST NOT list
+  says, or proceeds as if the constraint did not exist.
+"""
+
+
+def expected_text(q):
+    """The ground truth shown to the judge: the expected answer, its key facts, and what a correct answer must not
+    say or do (the v2 semantic question format), or just `expected` for older sets."""
+    out = q.get('expected') or ''
+    facts = [f for f in (q.get('expected_facts') or []) if f]
+    if facts:
+        out += '\nKey facts:\n' + '\n'.join('- ' + f for f in facts)
+    bad = [f for f in (q.get('must_not') or []) if f]
+    if bad:
+        out += '\nA correct answer must NOT:\n' + '\n'.join('- ' + f for f in bad)
+    return out
+
+
 def category_rules(q):
     """Extra judge rules from the question's category and group (abstention, negative, planted)."""
     c = (q.get('category') or '').lower() + ' ' + (q.get('group') or '').lower()
@@ -57,6 +77,8 @@ def category_rules(q):
         rules += ABSTAIN_RULE
     if 'negative' in c:
         rules += NEGATIVE_RULE
+    if 'task' in c:
+        rules += TASK_RULE
     if re.search(r'inject|planted|instruction', c):
         rules += PLANTED_RULE
     return rules
@@ -125,7 +147,7 @@ def judge_vote(q, answer, model, n):
 def judge(q, answer, model):
     cand = (answer or '').replace('</candidate>', '</ candidate>')
     prompt = 'QUESTION:\n%s\n\nEXPECTED:\n%s\n\n<candidate>\n%s\n</candidate>\n\nGrade the candidate. JSON only.' % (
-        q['question'], q['expected'], cand)
+        q['question'], expected_text(q), cand)
     cmd = ['claude', '-p', '--model', model, '--output-format', 'json', '--setting-sources', 'project',
            '--no-session-persistence', '--tools=', '--system-prompt', JUDGE_SYSTEM.format(extra=category_rules(q)),
            '--', prompt]
@@ -157,8 +179,28 @@ def load_runs(results):
         except ValueError:
             continue
         if 'id' in r:
+            stream = p.with_name(r['id'] + '.stream.jsonl')
+            r['context_chars'] = tool_result_chars(stream)
             runs[r['id']] = r
     return runs
+
+
+def tool_result_chars(stream):
+    """Characters of tool results the answering agent read (its retrieval cost in context)."""
+    n = 0
+    try:
+        for line in stream.read_text(encoding='utf-8', errors='replace').splitlines():
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            if d.get('type') == 'user' and isinstance((d.get('message') or {}).get('content'), list):
+                for b in d['message']['content']:
+                    if isinstance(b, dict) and b.get('type') == 'tool_result':
+                        n += len(json.dumps(b.get('content'), ensure_ascii=False))
+    except OSError:
+        return None
+    return n
 
 
 def p95(xs):
@@ -186,13 +228,15 @@ def summarize(rows):
                 latency_p95_s=round(p95(lat) / 1000.0, 1) if lat else None,
                 cost_mean_usd=round(mean(cost), 4) if cost else None,
                 tokens_io_mean=round(mean([u['input_tokens'] + u['output_tokens'] for u in use])) if use else None,
-                tokens_cache_mean=round(mean([u['cache_read_input_tokens'] + u['cache_creation_input_tokens'] for u in use])) if use else None)
+                tokens_cache_mean=round(mean([u['cache_read_input_tokens'] + u['cache_creation_input_tokens'] for u in use])) if use else None,
+                context_chars_mean=round(mean([r['run']['context_chars'] for r in run_ok if r['run'].get('context_chars') is not None]))
+                if any(r['run'].get('context_chars') is not None for r in run_ok) else None)
 
 
 COLS = [('n', 'n'), ('correct', 'correct'), ('partial', 'partial'), ('wrong', 'wrong'), ('error', 'err'),
         ('score', 'score'), ('must_include_rate', 'must_incl'), ('latency_mean_s', 'lat mean s'),
         ('latency_p95_s', 'lat p95 s'), ('cost_mean_usd', 'cost mean $'), ('tokens_io_mean', 'in+out tok'),
-        ('tokens_cache_mean', 'cache tok')]
+        ('tokens_cache_mean', 'cache tok'), ('context_chars_mean', 'ctx chars')]
 
 
 def fmt(v):
@@ -247,9 +291,32 @@ def grade(args):
     summ = {c: summarize([r for r in rows if r['category'] == c]) for c in cats}
     summ['overall'] = summarize(rows)
     summ['overall']['judge_cost_total_usd'] = round(sum(g.get('judge_cost_usd') or 0 for g in grades.values()), 4)
+    if args.controls:
+        summ['overall']['controls'] = controls(qs, args)
     (results / 'summary.json').write_text(json.dumps(summ, indent=1), encoding='utf-8')
     (results / 'summary.md').write_text(summary_md(results.name, summ), encoding='utf-8')
     print(summary_md(results.name, summ))
+
+
+CONTROL_ANSWERS = {
+    'no-info': "I don't have enough information about that in this project's memory.",
+    'confident-wrong': 'It was decided to use PostgreSQL 15 on port 5432 with a nightly cron job, because the team '
+                       'preferred a relational store and wanted backups to run at 2 AM.',
+}
+
+
+def controls(qs, args):
+    """Negative controls: answers the judge must fail. 'no-info' must fail on every non-abstention question,
+    'confident-wrong' on every question. Returns the false-pass rate of each (lower is better)."""
+    import random
+    rnd = random.Random(7)
+    sample = rnd.sample(qs, min(args.controls, len(qs)))
+    out = {}
+    for name, ans in CONTROL_ANSWERS.items():
+        pool = [q for q in sample if name != 'no-info' or 'abstain' not in (q.get('group', '') + q.get('category', ''))]
+        passed = sum(1 for q in pool if judge_vote(q, ans, args.judge_model, args.judges)['verdict'] == 'correct')
+        out[name] = {'n': len(pool), 'false_pass': round(passed / len(pool), 3) if pool else None}
+    return out
 
 
 def compare(dirs, out):
@@ -280,6 +347,7 @@ def main():
     ap.add_argument('--workers', type=int, default=6)
     ap.add_argument('--regrade', action='store_true')
     ap.add_argument('--judges', type=int, default=3, help='judge calls per answer, majority verdict')
+    ap.add_argument('--controls', type=int, default=0, help='also grade N negative-control answers (false-pass rate)')
     ap.add_argument('--compare', nargs='+')
     ap.add_argument('--out')
     args = ap.parse_args()

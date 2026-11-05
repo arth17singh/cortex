@@ -66,7 +66,8 @@ def child_env(extra=None):
 def command(args, question, allow=(), mcp=None):
     """Only the arm's own MCP servers (--strict-mcp-config + the arm's .mcp.json), no web tools: answers come from
     the arm's files and memory tools only."""
-    return (['claude', '-p', '--model', args.model, '--setting-sources', 'project', '--strict-mcp-config']
+    return (['claude', '-p', '--model', args.model] + (['--effort', args.effort] if args.effort else [])
+            + ['--setting-sources', 'project', '--strict-mcp-config']
             + (['--mcp-config', mcp] if mcp else [])
             + ['--no-session-persistence', '--disallowedTools=' + args.disallow]
             + (['--allowedTools', *allow] if allow else [])
@@ -165,6 +166,7 @@ def main():
     ap.add_argument('--model', default='sonnet')
     ap.add_argument('--timeout', type=int, default=300)
     ap.add_argument('--disallow', default='Edit,Write,MultiEdit,NotebookEdit,WebSearch,WebFetch')
+    ap.add_argument('--effort', help='claude --effort for the answering agent (low, medium, high, ...); recorded in run_meta')
     ap.add_argument('--force', action='store_true', help='run even if parent dirs hold CLAUDE.md/settings')
     args = ap.parse_args()
 
