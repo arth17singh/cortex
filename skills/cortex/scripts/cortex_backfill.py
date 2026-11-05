@@ -65,13 +65,17 @@ OPEN ({open_date}): "{open}"
 Later records (each with its id and date):
 {cands}
 Does ONE of the later records answer, settle, confirm, reject or make obsolete the open item? Pick none if they only
-relate to it. Reply ONLY JSON: {{"resolved_by": "<record id>" or null, "resolution": "<one sentence: how it was settled>"}}"""
+relate to it, or if settling it would have to be inferred from the later record merely being later. Reply ONLY JSON: {{"resolved_by": "<record id>" or null, "resolution": "<one sentence: how it was settled>"}}"""
 JUDGE = """An earlier project record and a newer statement from a later point in the project history:
 EARLIER ({old_date}): "{old}"
 NEWER ({new_date}): "{new}"
+Rules (after Graphiti's invalidation prompt): the earlier is replaced only when both cannot be true at the same time,
+or the newer explicitly says it ended, changed or was replaced. Never infer replacement from the newer one merely
+being later. Progress updates on the same plan, and facts about different parts of a thing, are compatible.
+Compare when each was true (the dates given), not the order they were written down.
 Pick one verdict:
-- supersedes: the earlier is no longer true, or the newer states the same claim more completely (so the earlier
-  adds nothing the newer lacks);
+- supersedes: the earlier is no longer true (by the rules above), or the newer states the same claim more
+  completely (so the earlier adds nothing the newer lacks);
 - duplicate: same information, the newer adds nothing;
 - coexists: both stay true and each says something the other does not.
 Reply ONLY JSON: {{"verdict": "supersedes|coexists|duplicate"}}"""
