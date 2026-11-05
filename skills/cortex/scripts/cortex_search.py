@@ -228,7 +228,15 @@ def search(root, query, alts=(), max_evidence=8, refresh=True):
             import cortex_embed as E
             dl = [d for _, d in E.dense(root, query, emb_model, k=400)]
             if dl:
-                w = float(os.environ.get('CORTEX_EMBED_W', '1'))
+                if os.environ.get('CORTEX_EMBED_W'):
+                    w = float(os.environ['CORTEX_EMBED_W'])
+                else:                                   # adaptive: do the keyword hits contain the question's rare words?
+                    rare = [t for t in dict.fromkeys(L.tokens(query)) if t not in COMMON and len(t) > 3 and R.idf(t) >= 2.0]
+                    top = R.docs(lexical[:5])
+                    seen = set(L.tokens(' '.join(x['text'] or '' for x in top.values())))
+                    cov = (sum(1 for t in rare if t in seen) / len(rare)) if rare else 0.0
+                    hi = float(os.environ.get('CORTEX_EMBED_W_HI', '4'))
+                    w = 1.0 if cov >= float(os.environ.get('CORTEX_EMBED_COV', '1.0')) else hi   # tuned on dev + bb19 only (2026-11-05)
                 lexical = rrf([lexical, dl], [1.0, w]) if os.environ.get('CORTEX_EMBED_ONLY') != '1' else dl
         except Exception:
             pass
