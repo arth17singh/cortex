@@ -89,6 +89,13 @@ def hook(data):
     state, rtext = H.ledger_row(root, sid)
     if any(k == 'paused' and b is None for k, a, b in H.ranges(rtext)):
         return
+    if tp:                                   # keep the chat archive and the search index current, without waiting
+        try:
+            subprocess.Popen([sys.executable, str(HERE / 'cortex_archive.py'), '--root', str(root), '--transcript', tp,
+                              '--index'], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True, cwd=tempfile.gettempdir(), env={**os.environ, 'CORTEX_NESTED': '1'})
+        except OSError:
+            pass
     reply = (data.get('last_assistant_message') or '').strip()
     if len(reply) < MIN_REPLY:
         return

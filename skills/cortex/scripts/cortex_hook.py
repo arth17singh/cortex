@@ -488,6 +488,14 @@ def l1_health(root, days=30):
     return stale, unverified
 
 
+def _is_v7(root):
+    try:
+        import cortex_lib
+        return cortex_lib.is_v7(root)
+    except Exception:
+        return False
+
+
 def session_start(data, root):
     sid, tp = data.get('session_id', ''), data.get('transcript_path', '')
     switch, scope = memory_switch(root, sid)
@@ -523,6 +531,37 @@ def session_start(data, root):
         pass
     if data.get('source') == 'compact':
         lines.append("After compaction: keep appending to this chat's existing session log (listed in its ledger row).")
+    v8_note = ''
+    if switch != 'read-off' and _is_v7(root):
+        try:                                     # v7/v8: catch the chat archive and index up, without waiting
+            subprocess.Popen([sys.executable, str(HERE / 'cortex_archive.py'), '--root', str(root), '--all', '--index'],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True, cwd=tempfile.gettempdir(), env={**os.environ, 'CORTEX_NESTED': '1'})
+        except OSError:
+            pass
+        try:
+            import cortex_tools as T
+            if data.get('source') == 'compact':           # put back what this chat decided before its context shrank
+                back = T.reanchor(root, sid)
+                if back:
+                    lines.append(back)
+                    v8_note = 're-anchored this chat\'s decisions'
+            else:                                         # catch me up: what changed since the last session here
+                mark = Path(tempfile.gettempdir()) / 'cortex-hook' / (re.sub(r'[^A-Za-z0-9]', '-', str(root))[-100:] + '.last')
+                try:
+                    since = mark.read_text().strip()
+                except OSError:
+                    since = ''
+                mark.parent.mkdir(exist_ok=True)
+                mark.write_text(date.today().isoformat())
+                if since and since < date.today().isoformat():
+                    b = T.brief(root, since, limit=6)
+                    if b:
+                        lines.append('Catch-up (memory changes since the last session in this project; mention them only '
+                                     'if they matter to what the user asks):\n' + b)
+                        v8_note = 'catch-up: ' + b.split('\n', 1)[0].split(':', 1)[-1].strip()[:70]
+        except Exception:
+            pass
     budget_note = selftest_note = ''
     if switch == 'read-off':
         lines.append(f"Memory reading is off for this {scope}: don't open, search or cite memory, write no recall line, "
@@ -575,6 +614,8 @@ def session_start(data, root):
         parts.append(selftest_note)
     if data.get('source') == 'compact':
         parts.append('resumed after compaction')
+    if v8_note:
+        parts.append(v8_note)
     msg = '  ·  '.join(parts) + '  ·  /cortex status'
     print(json.dumps({'systemMessage': msg,
                       'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': context}}))

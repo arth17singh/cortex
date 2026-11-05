@@ -126,6 +126,8 @@ def staleness(root, text, recorded):
     for p in dict.fromkeys(m.group(1) for m in PATH_RE.finditer(text or '')):
         if p.startswith(('memory/', 'http')) or '/' not in p and '.' not in p:
             continue
+        if p.startswith(Path(root).name + '/'):            # "project/backend/x.py" written from the parent folder
+            p = p[len(Path(root).name) + 1:]
         f = Path(root) / p
         if not f.exists():
             if '/' in p:

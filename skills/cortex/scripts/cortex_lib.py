@@ -68,7 +68,8 @@ def is_v7(root):
     """True when the project's CLAUDE.md carries the v7 CORTEX block. The v7-only hooks (inject, guard, capture)
     stay silent in v5 projects, so a global install changes nothing there until `/cortex upgrade`."""
     try:
-        return '<!-- CORTEX:BEGIN v7' in (Path(root) / 'CLAUDE.md').read_text(encoding='utf-8', errors='replace')
+        head = (Path(root) / 'CLAUDE.md').read_text(encoding='utf-8', errors='replace')
+        return '<!-- CORTEX:BEGIN v7' in head or '<!-- CORTEX:BEGIN v8' in head
     except OSError:
         return False
 

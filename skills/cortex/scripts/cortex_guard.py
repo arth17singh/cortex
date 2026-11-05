@@ -20,13 +20,13 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 SCRIPT_OWNED = re.compile(r'(^|/)memory/(records\.jsonl|entities\.md|GRAPH\.md|aliases\.json|sessions/README\.md|\.pending\.json|'
-                          r'log/capture\.jsonl|'
+                          r'log/capture\.jsonl|DECISIONS\.md|chats/[^/]+|\.cache/[^/]+|'
                           r'[^/]+/_index\.md|[^/]+/[^/]+\.records\.md)$')
 TAG = re.compile(r'\((?:auto )?[0-9a-f]{8}(?: L[\d-]+)?\)|\(code: [^)]+\)|\(r-[0-9a-f]{6}\)')
 RANGE = re.compile(r'\(L\d+-\d+\)\s*$')
 NOT_TOPIC = {'sessions', 'log', '_templates', 'team', '.backups'}
 SHELL_WRITE = re.compile(r'(>>?|\btee\b|\bsed\s+-i|\bcp\b|\bmv\b|\brm\b|\btruncate\b)[^|;&]*memory/'
-                         r'(records\.jsonl|entities\.md|aliases\.json|sessions/README\.md|[^/\s]+/_index\.md|'
+                         r'(records\.jsonl|entities\.md|aliases\.json|sessions/README\.md|DECISIONS\.md|chats/|\.cache/|[^/\s]+/_index\.md|'
                          r'[^/\s]+/[^/\s]+\.records\.md)')
 
 
@@ -99,6 +99,12 @@ def pre(data, root, switch):
     sid = (data.get('session_id') or '')[:8]
     n = count_lines(data.get('transcript_path') or '')
     write_cmd = f'python3 {HERE / "cortex_write.py"} --type … --subject … --statement … --why …'
+
+    if tool.endswith('memory_record') and tool.startswith('mcp__'):     # native tool: same provenance as the CLI
+        if sid and not inp.get('session'):
+            inp['session'], inp['line'] = data.get('session_id'), n
+            return rewrite(inp)
+        return None
 
     if tool == 'Bash':
         cmd = inp.get('command', '')

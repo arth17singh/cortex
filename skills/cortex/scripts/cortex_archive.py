@@ -115,6 +115,7 @@ def main():
     ap.add_argument('--session')
     ap.add_argument('--transcripts')
     ap.add_argument('--tz')
+    ap.add_argument('--index', action='store_true', help='refresh the search index afterwards')
     a = ap.parse_args()
     root = L.find_root(a.root, explicit=True)
     if not root:
@@ -136,6 +137,12 @@ def main():
     elif a.transcript:
         c = chats.get(Path(a.transcript).stem[:8], {})
         done[Path(a.transcript).stem[:8]] = archive_one(root, a.transcript, tz, c.get('state', ''), c.get('ranges') or '')
+    if a.index:
+        try:
+            import cortex_index
+            cortex_index.update(root)
+        except Exception as e:
+            done['index_error'] = str(e)[:200]
     print(json.dumps({'archived_blocks': done}))
 
 
