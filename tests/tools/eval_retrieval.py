@@ -75,12 +75,14 @@ def main():
         except (ValueError, KeyError):
             pass
     agg = defaultdict(lambda: [0, 0, 0, 0])       # hit refs, refs, questions with any hit, questions
+    shown = []
     t0 = time.perf_counter()
     lat = []
     for q in qs:
         t1 = time.perf_counter()
         p = S.search(a.root, q['question'])
         lat.append(time.perf_counter() - t1)
+        shown.append(len(S.render(p)))
         refs = [r for r in (parse_ref(x) for x in q.get('refs', [])) if r]
         res = [covered(r, p, a.window) for r in refs]
         for key in ('ALL', q['_set'], 'group:' + (q.get('group') or '-')):
@@ -90,6 +92,7 @@ def main():
     out = {k: {'ref_recall': round(v[0] / v[1], 3) if v[1] else None, 'any_hit': round(v[2] / v[3], 3), 'n': v[3]}
            for k, v in sorted(agg.items())}
     print(json.dumps({'label': a.label, 'window': a.window, 'env': a.env, 'results': out,
+                      'chars_shown_mean': int(sum(shown) / max(1, len(shown))),
                       'latency_ms': {'p50': round(lat[len(lat) // 2] * 1000), 'p95': round(lat[int(len(lat) * .95)] * 1000)}}))
 
 
