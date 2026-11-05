@@ -21,20 +21,6 @@ sys.path.insert(0, str(HERE))
 import cortex_lib as L  # noqa: E402
 
 
-def blocked_ranges(raw, n):
-    """'mined 1-300; skipped 301-400; paused 500-' -> [(301, 400), (500, n)] (only skipped and paused)."""
-    out, kind = [], None
-    t = re.sub(r'\([^)]*\)', ' ', (raw or '').replace('`', '').replace('*', '')).replace('–', '-').replace('—', '-').lower()
-    for part in re.split(r'[;,]', t):
-        m = re.fullmatch(r'\s*(?:([a-z]+)\s+)?(\d+)\s*-\s*(\d*)\s*', part)
-        if not m:
-            continue
-        kind = m.group(1) or kind
-        if kind in ('skipped', 'paused'):
-            out.append((int(m.group(2)), int(m.group(3)) if m.group(3) else n))
-    return out
-
-
 def tz_of(root):
     m = re.search(r'\b([A-Z][a-z]+/[A-Za-z_]+(?:/[A-Za-z_]+)?)\b', '\n'.join(
         (root / 'memory' / 'INDEX.md').read_text(encoding='utf-8', errors='replace').splitlines()[:4]))
@@ -63,7 +49,7 @@ def main():
     files, blocks, plan = [], [], []
     for c in scan.get('chats', []):
         skip = c['state'] == 'excluded'
-        br = [] if skip else blocked_ranges(c.get('ranges'), c['lines'])
+        br = [] if skip else L.blocked_ranges(c.get('ranges'), c['lines'])
         plan.append({'chat': c['short'], 'lines': c['lines'], 'use': not skip, 'never_read': br})
         if not skip:
             files.append(str(Path(scan['transcripts']) / (c['id'] + '.jsonl')))

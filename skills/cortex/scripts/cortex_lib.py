@@ -73,6 +73,20 @@ def is_v7(root):
         return False
 
 
+def blocked_ranges(raw, n):
+    """Ledger ranges never to read: 'mined 1-300; skipped 301-400; paused 500-' -> [(301, 400), (500, n)]."""
+    out, kind = [], None
+    t = re.sub(r'\([^)]*\)', ' ', (raw or '').replace('`', '').replace('*', '')).replace('–', '-').replace('—', '-').lower()
+    for part in re.split(r'[;,]', t):
+        m = re.fullmatch(r'\s*(?:([a-z]+)\s+)?(\d+)\s*-\s*(\d*)\s*', part)
+        if not m:
+            continue
+        kind = m.group(1) or kind
+        if kind in ('skipped', 'paused'):
+            out.append((int(m.group(2)), int(m.group(3)) if m.group(3) else n))
+    return out
+
+
 def records_path(root):
     return Path(root) / 'memory' / 'records.jsonl'
 
