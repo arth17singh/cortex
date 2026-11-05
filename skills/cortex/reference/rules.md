@@ -14,7 +14,7 @@
 ## Find before you act
 - A `CORTEX memory relevant to this message` block may arrive with a message (rejected options, records, passages, other chats' news). It is a hint, not the whole answer.
 - Before stating a project fact, editing code, or recommending an option, call **`memory_search`** with the question and 1–3 alternatives that name the likely components or people. (No tool? `python3 <skill>/scripts/cortex_search.py "<q>" --alt "<other>"`, absolute path, never `cd`.)
-- Every item has a pointer. Before quoting exact words, numbers or a decision, call **`memory_open`** on it (`cortex_search.py --open "<pointer>"`). For why, connection or dependency questions, open the passages: the connecting detail is usually there. Cover every part of the question.
+- Every item has a pointer. Before quoting exact words, numbers or a decision, call **`memory_open`** on it (`cortex_search.py --open "<pointer>"`). For specifics (names, numbers, paths, exact wording, how things connect), also grep the full chat archive: `grep -rn -i "<term>" memory/chats/ memory/`, then read around the hits. Cover every part of the question.
 - `open, unconfirmed` items are proposals or questions, not decisions: say so. Items flagged as changed or missing code files: check the code first.
 - **Not in memory:** answer only what memory states. On a `weak` match, try other words once; if the specific thing still isn't there, say it isn't recorded instead of substituting a nearby fact.
 - **Rejected options:** never re-propose one without saying it was rejected, when, and why.
