@@ -1,7 +1,7 @@
 ---
 name: cortex
-description: "CORTEX: layered, self-maintaining project memory. Subcommands: start (record from now), upgrade (move a project to the current rules), all (backfill untracked past chats), status, save, pause/resume, off/on, exclude/include, forget, recall, audit, selftest, config, help. Use when the user runs /cortex."
-argument-hint: "help | upgrade | start [--from-chat-start] | all [only <chat>] [since DATE] [last N] [exclude X] [include-skipped] [--yes] | status | save [note] | pause [--read] [--project] | resume [--read] [--project] | off [--project] | on [--project] | exclude <chat> | include <chat> | forget <topic> | recall <question> | audit | selftest | config [key=value]"
+description: "CORTEX: layered, self-maintaining project memory. Subcommands: start (record from now), upgrade (move a project to the current version), all (backfill untracked past chats), status, save, pause/resume, off/on, exclude/include, forget, recall, brief (catch me up), timeline (one subject's history), open-items, decisions (decision log), verify (stale memory), audit, selftest, config, help. Use when the user runs /cortex."
+argument-hint: "help | upgrade | brief [since DATE] | timeline <subject> | open-items | decisions | verify | start [--from-chat-start] | all [only <chat>] [since DATE] [last N] [exclude X] [include-skipped] [--yes] | status | save [note] | pause [--read] [--project] | resume [--read] [--project] | off [--project] | on [--project] | exclude <chat> | include <chat> | forget <topic> | recall <question> | audit | selftest | config [key=value]"
 disable-model-invocation: true
 allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/ledger_scan.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/extract_transcript.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_status.py *) Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/selftest.py *)
 ---
@@ -42,8 +42,8 @@ List the subcommands with one-line descriptions and two examples. If memory exis
 ### upgrade
 Bring this project to the current rules and layout. Show what will change and wait for an OK.
 - **Pre-v5 project** (no `memory/RULES.md`): follow `${CLAUDE_SKILL_DIR}/reference/build.md` Step 0, "Upgrading from v4 (or older) to v5", then Steps 6–8.
-- **v5 project → v7** (the CORTEX block in `CLAUDE.md` says `v5`): run `python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_upgrade.py <project> --dry-run` and show the user the plan (chats, lines to read, estimated model calls; excluded chats and skipped/paused ranges are never read). On OK, run it without `--dry-run`, in the background (several minutes on a large project). It backs up `memory/` to `memory/.backups/<stamp>-pre-v7/`, backfills `memory/records.jsonl` from the project's transcripts, installs the v7 rules and `CLAUDE.md` block, and renders `GRAPH.md` and `entities.md` (not loaded by default; the graph is opt-in with `CORTEX_GRAPH=1`). Curated files are not touched. Report the record counts from its output in two lines. The v7 hooks (`reference/hooks-v7.json`) must be registered for the project (or globally); they stay silent in projects still on v5.
-- **v7 project whose `RULES.md` differs from the skill's copy:** copy the skill's `rules.md` over `memory/RULES.md` after backing it up.
+- **v5 or v7 project → v8** (the CORTEX block in `CLAUDE.md` says `v5` or `v7`): run `python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_upgrade.py <project> --dry-run` and show the user the plan (chats, lines to read, estimated model calls; excluded chats and skipped/paused ranges are never read). On OK, run it without `--dry-run`, in the background (a v5 project needs a backfill: several minutes; a v7 project only archives and indexes: seconds). It backs up `memory/` to `memory/.backups/<stamp>-pre-v7/`, backfills `memory/records.jsonl` (v5 only), archives every recorded chat into `memory/chats/` (redacted, line-addressed, git-ignored), builds the search index (`memory/.cache/`), and installs the v8 rules and `CLAUDE.md` block. Curated files are not touched. Report the counts in two lines, then make sure the memory tools are registered once (`claude mcp add --scope user cortex -- python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_mcp.py`) and the hooks from `reference/hooks-v8.json` are installed; the v7/v8 hooks stay silent in projects still on v5.
+- **v8 project whose `RULES.md` differs from the skill's copy:** copy the skill's `rules.md` over `memory/RULES.md` after backing it up.
 - **v5 project staying on v5, whose `RULES.md` differs from the skill's v5 copy (`reference/rules-v5.md`):** show `diff memory/RULES.md ${CLAUDE_SKILL_DIR}/reference/rules-v5.md`, then on OK back up `memory/RULES.md` and `memory/PROTOCOL.md` to `memory/.backups/<YYYY-MM-DD-HHMM>-upgrade/`, copy the skill's `rules-v5.md` over `RULES.md`, and re-render `PROTOCOL.md` and `_templates/` from `reference/protocol-template.md`, keeping `PROTOCOL.md`'s config values. Memory content (index, topic files, logs) is not touched; if the new caps call for consolidation, the next chat's start-up line will say so.
 - Finish by telling the user to start a new chat, since this one still has the old rules in context.
 
@@ -107,6 +107,7 @@ Permanently leave a chat out of memory. The chat can be named by id prefix, date
 1. **Identify it:** IDs and dates from the scanner. For a description, compare only the first-message previews. If it's ambiguous, list the candidates and ask.
 2. **Mark it:** set its row to `excluded` with ranges `none`; this is the only operation allowed to shrink ranges. If it's this chat, stop recording now.
 3. **If it was already in memory,** show its session logs and every L1 bullet tagged with its id (plus anything else that grep finds for distinctive terms from its logs). Offer to purge. On OK, delete them and add a changelog line without the content.
+4. **v8:** its chat archive (`memory/chats/<id8>.txt`) is deleted and the index refreshed on the next archive run; run `python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_archive.py --root <project> --all --index` to do it now. Records drawn from it stay until purged in step 3.
 
 ### include <chat>
 - **Excluded chat:** set it to `untracked` with no ranges.
@@ -118,13 +119,30 @@ Then offer `/cortex all only <chat>`.
 1. Search `memory/` for the topic.
 2. Show every match with its file and line, and propose exact deletions or rewrites.
 3. On OK, apply them. Add a changelog line saying "forgot <label>" and add the label (not the content) to "Forgotten topics" in `PROTOCOL.md`. Recording and `recall` never re-store it.
+4. **v8:** `memory_search` also finds it in the chat archive. For each chat range where it appears, offer to mark that range `skipped` in the ledger; the next archive run removes those lines from `memory/chats/` and the index (`cortex_archive.py --root <project> --all --index` does it now).
 
 The ledger is unchanged.
 
 ### recall <question>
-1. **Search** following "Reading" in `RULES.md`: the map, L1, session logs (grep, then read windows), then raw chats via `--grep`.
-2. **Answer** with short quotes and citations (`memory/<file>:<line>` or `(<id8> L<line>)`), with confidence and anything unverified flagged.
-3. **Fix** wrong or missing memory if this chat is recording, unless the topic is on the Forgotten topics list.
+1. **Search** with `memory_search` (or `python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_search.py "<question>" --alt "<other wording>"`): records, rejected options, old → new chains and passages from the archive of every chat, each with a pointer. Give 1–3 alternative wordings.
+2. **Open** the pointers the answer rests on with `memory_open` (`cortex_search.py --open "<pointer>"`) and quote the exact words.
+3. **Answer** with short quotes and pointers (`chat <id8> L<line>` or `memory/<file>:<line>`), the match strength, and anything unconfirmed, replaced or stale flagged. On a weak match after a second wording, say it isn't recorded.
+4. **Fix** wrong or missing memory if this chat is recording, unless the topic is on the Forgotten topics list.
+
+### brief [since YYYY-MM-DD]
+Catch the user up: run `python3 ${CLAUDE_SKILL_DIR}/scripts/cortex_tools.py brief [--since DATE]` (or `memory_brief`) and summarise what changed across every chat in this project: decisions, rejections, status changes and new open items, newest first, with pointers. Default: the last 3 days. (New chats already get a short catch-up automatically when something changed since the last session.)
+
+### timeline <subject>
+One subject's whole history: `cortex_tools.py timeline "<subject>"` (or `memory_timeline`). Present it old → new: what was decided, what replaced what and why, what was rejected, with dates and pointers. Good for "how did X evolve", "what did we use before".
+
+### open-items
+Unresolved questions and proposals awaiting a decision, oldest first: `cortex_tools.py open-items [--all]`. Offer to settle the ones the user can answer now: record the decision with `memory_record` and `supersedes=<the open item's id>`.
+
+### decisions
+The decision log: `cortex_tools.py decisions --write` renders `memory/DECISIONS.md` (every decision and rejection with its reason, date and pointer, replaced ones struck through), a file teammates can read or review in a pull request. Show the path and the counts.
+
+### verify
+Stale-memory check: `cortex_tools.py verify` lists current records that name code files which changed or disappeared since they were recorded. For each, check the code, and record the correction with `supersedes=<id>` where memory is wrong.
 
 ### audit
 Run the audit in `PROTOCOL.md` plus `build.md` Step 8 (cold-start test only if asked). Report findings, propose fixes, and apply them on OK.

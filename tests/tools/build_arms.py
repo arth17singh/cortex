@@ -75,10 +75,61 @@ def v7_arm(dst, src, skill, graph):
     settings(dst, hooks, script_allow(skill, ['cortex_search.py', 'ledger_scan.py', 'extract_transcript.py']), env)
 
 
+def v8_arm(dst, src, skill, transcripts):
+    """v8: records + chat archive + FTS5 index, v8 rules and block, native memory tools (MCP), inject + guard hooks."""
+    shutil.copytree(src, dst)
+    mem = dst / 'memory'
+    for p in mem.glob('log/backfill*'):
+        p.unlink()
+    for d in ('chats', '.cache'):
+        shutil.rmtree(mem / d, ignore_errors=True)
+    subprocess.run([sys.executable, str(skill / 'scripts' / 'cortex_archive.py'), '--root', str(dst), '--all', '--index',
+                    '--transcripts', str(transcripts), '--tz', 'America/Los_Angeles'], check=True, capture_output=True)
+    shutil.copy(skill / 'reference' / 'rules.md', mem / 'RULES.md')
+    stub = re.search(r'=====\n(<!-- CORTEX:BEGIN v8 -->.*?<!-- CORTEX:END -->)\n=====',
+                     (skill / 'reference' / 'claude-block.md').read_text(), re.S).group(1).replace('{{SKILL_DIR}}', str(skill))
+    md = (dst / 'CLAUDE.md').read_text()
+    (dst / 'CLAUDE.md').write_text(re.sub(r'<!-- CORTEX:BEGIN.*?<!-- CORTEX:END -->', lambda m: stub, md, flags=re.S))
+    py = f'python3 {skill}/scripts/'
+    hooks = {'UserPromptSubmit': hook(py + 'cortex_inject.py', 10),
+             'PreToolUse': [{'matcher': 'Edit|Write|MultiEdit|Bash|Read|Grep|Glob|mcp__cortex__memory_record',
+                             'hooks': [{'type': 'command', 'command': py + 'cortex_guard.py', 'timeout': 5}]}]}
+    tools = ['mcp__cortex__memory_search', 'mcp__cortex__memory_open', 'mcp__cortex__memory_timeline',
+             'mcp__cortex__memory_brief']
+    settings(dst, hooks, script_allow(skill, ['cortex_search.py', 'cortex_tools.py']) + tools)
+    (dst / '.mcp.json').write_text(json.dumps({'mcpServers': {'cortex': {
+        'type': 'stdio', 'command': 'python3', 'args': [str(skill / 'scripts' / 'cortex_mcp.py')],
+        'env': {'CLAUDE_PROJECT_DIR': str(dst)}}}}, indent=1))
+
+
+def grep_chats_arm(dst, v5_src, archive_dir):
+    """Baseline: the same curated notes plus the same chat archive as plain text files, grep only."""
+    (dst / 'notes').mkdir(parents=True)
+    mem = v5_src / 'memory'
+    for p in sorted(mem.rglob('*.md')):
+        rel = p.relative_to(mem)
+        if rel.parts[0] in ('_templates', '.backups', 'log') or rel.name in ('RULES.md', 'PROTOCOL.md', 'LEDGER.md', 'INDEX.md'):
+            continue
+        out = dst / 'notes' / rel
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(p, out)
+    shutil.copytree(archive_dir, dst / 'chats', ignore=shutil.ignore_patterns('.*'))
+    head = re.sub(r'<!-- CORTEX:BEGIN v5 -->.*?<!-- CORTEX:END -->\n', '', (v5_src.parent / 'project' / 'CLAUDE.md').read_text(),
+                  flags=re.S) if False else re.sub(r'<!-- CORTEX:BEGIN v5 -->.*?<!-- CORTEX:END -->\n', '',
+                                                   (REAL / 'project' / 'CLAUDE.md').read_text(), flags=re.S)
+    (dst / 'CLAUDE.md').write_text(head.replace('memory/', 'notes/') + '\n## Project notes\nProject notes are in `notes/` '
+                                   '(topic files and per-chat session logs), and the full text of every past chat is in '
+                                   '`chats/` (one file per chat, each block tagged with its transcript line). Before '
+                                   'answering a question about the project, grep both (`grep -rn -i <term> notes/ chats/`) '
+                                   'and read around the hits. If the answer is not there, say so instead of guessing.\n')
+    settings(dst)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('arms')
     ap.add_argument('--v7-project', default=str(REAL / 'project-v7'))
+    ap.add_argument('--only', help='comma list of arms to build (default: all); v8 and grep-chats need --v7-project')
     a = ap.parse_args()
     arms = Path(a.arms).resolve()
     if REPO in [arms, *arms.parents]:
@@ -115,13 +166,22 @@ def main():
                                  'the notes, say so instead of guessing.\n')
     settings(g)
 
-    v7_arm(arms / 'v7', Path(a.v7_project), skill, graph=True)
-    v7_arm(arms / 'v7-nograph', Path(a.v7_project), skill, graph=False)
+    only = set((a.only or 'v5,grep,v7,v7-nograph,v8,grep-chats').split(','))
+    if 'v7' in only:
+        v7_arm(arms / 'v7', Path(a.v7_project), skill, graph=True)
+    if 'v7-nograph' in only:
+        v7_arm(arms / 'v7-nograph', Path(a.v7_project), skill, graph=False)
+    if 'v8' in only:
+        v8_arm(arms / 'v8', Path(a.v7_project), skill, REAL / 'transcripts')
+    if 'grep-chats' in only:
+        grep_chats_arm(arms / 'grep-chats', REAL / 'project', arms / 'v8' / 'memory' / 'chats')
     commit = subprocess.run(['git', '-C', str(REPO), 'rev-parse', '--short', 'HEAD'], capture_output=True,
                             text=True).stdout.strip()
     (arms / 'BUILD.json').write_text(json.dumps({'repo_commit': commit, 'v7_project': a.v7_project,
                                                  'arms': ['v5', 'grep', 'v7', 'v7-nograph']}, indent=1))
-    for arm in ('v5', 'grep', 'v7', 'v7-nograph'):
+    for arm in ('v5', 'grep', 'v7', 'v7-nograph', 'v8', 'grep-chats'):
+        if not (arms / arm).exists():
+            continue
         n = sum(1 for _ in (arms / arm).rglob('*') if _.is_file())
         print(arm, n, 'files')
 

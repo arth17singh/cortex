@@ -94,7 +94,26 @@ def switch(root):
         return None
 
 
+ALIASES = {'question': ('query', 'q', 'text', 'search'), 'alternatives': ('alts', 'alt', 'variants', 'rephrasings'),
+           'pointer': ('ref', 'reference', 'path', 'location'), 'subject': ('topic', 'name', 'entity')}
+
+
+def normalise(args):
+    """Accept common synonyms for argument names: models sometimes say 'query' where the schema says 'question'."""
+    args = dict(args or {})
+    for k, alts in ALIASES.items():
+        if not args.get(k):
+            for x in alts:
+                if args.get(x):
+                    args[k] = args[x]
+                    break
+    if isinstance(args.get('alternatives'), str):
+        args['alternatives'] = [args['alternatives']]
+    return args
+
+
 def call(name, args):
+    args = normalise(args)
     root = project_root()
     if not root:
         return 'No CORTEX memory in this project (memory/INDEX.md not found).', False
@@ -105,6 +124,8 @@ def call(name, args):
         if sw == 'read-off':
             return 'Memory reading is off for this project: answer without memory.', False
         import cortex_search as S
+        if not str(args.get('question') or '').strip():
+            return 'memory_search needs a question.', True
         p = S.search(root, str(args.get('question') or ''), [str(x) for x in (args.get('alternatives') or [])][:3],
                      int(args.get('max_items') or 8))
         return S.render(p), False

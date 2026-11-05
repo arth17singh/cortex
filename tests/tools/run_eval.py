@@ -63,10 +63,12 @@ def child_env(extra=None):
     return env
 
 
-def command(args, question, allow=()):
-    """No MCP servers (--strict-mcp-config), no web tools: answers come from the arm's files only."""
-    return (['claude', '-p', '--model', args.model, '--setting-sources', 'project', '--strict-mcp-config',
-             '--no-session-persistence', '--disallowedTools=' + args.disallow]
+def command(args, question, allow=(), mcp=None):
+    """Only the arm's own MCP servers (--strict-mcp-config + the arm's .mcp.json), no web tools: answers come from
+    the arm's files and memory tools only."""
+    return (['claude', '-p', '--model', args.model, '--setting-sources', 'project', '--strict-mcp-config']
+            + (['--mcp-config', mcp] if mcp else [])
+            + ['--no-session-persistence', '--disallowedTools=' + args.disallow]
             + (['--allowedTools', *allow] if allow else [])
             + ['--output-format', 'stream-json', '--verbose', '--', question])
 
@@ -107,7 +109,8 @@ def run_one(q, args, arm, out):
     t0 = datetime.datetime.now()
     with open(stream, 'wb') as fh:
         allow, extra_env = arm_settings(arm)
-        proc = subprocess.Popen(command(args, q['question'], allow), cwd=str(arm), env=child_env(extra_env),
+        mcp = str(Path(arm) / '.mcp.json') if (Path(arm) / '.mcp.json').exists() else None
+        proc = subprocess.Popen(command(args, q['question'], allow, mcp), cwd=str(arm), env=child_env(extra_env),
                                 stdin=subprocess.DEVNULL, stdout=fh, stderr=subprocess.PIPE,
                                 start_new_session=True)
         try:

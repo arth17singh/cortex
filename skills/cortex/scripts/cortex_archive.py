@@ -64,6 +64,19 @@ def chat_off(root, chat):
         return False
 
 
+def purge(out, blocked):
+    """Rewrite an archive without the blocks inside `blocked` ranges. Returns the number removed."""
+    text = out.read_text(encoding='utf-8', errors='replace')
+    parts = re.split(r'\n(?=\[L\d+ )', text)
+    keep = [b for b in parts if not (re.match(r'\[L(\d+) ', b) and
+                                     any(a <= int(re.match(r'\[L(\d+) ', b).group(1)) <= z for a, z in blocked))]
+    if len(keep) != len(parts):
+        tmp = out.with_suffix('.tmp')
+        tmp.write_text('\n'.join(keep), encoding='utf-8')
+        os.replace(tmp, out)
+    return len(parts) - len(keep)
+
+
 def archive_one(root, path, tz, state='', ranges=''):
     """Append the new part of one transcript to memory/chats/<chat>.txt. Returns the number of blocks added."""
     path = Path(path)
@@ -85,11 +98,13 @@ def archive_one(root, path, tz, state='', ranges=''):
         except ValueError:
             last = 0
         n = complete_lines(path)
+        blocked = L.blocked_ranges(ranges, n)
+        if blocked and out.exists():             # ranges skipped later are removed from what was archived before
+            purge(out, blocked)
         if n <= last:
             return 0
         text = subprocess.run([sys.executable, str(HERE / 'extract_transcript.py'), str(path), tz, str(last + 1), str(n)],
                               capture_output=True, text=True).stdout
-        blocked = L.blocked_ranges(ranges, n)
         blocks = []
         for b in re.split(r'\n(?=\[L\d+ )', text):
             m = re.match(r'\[L(\d+) ', b)

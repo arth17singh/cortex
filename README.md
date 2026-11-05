@@ -1,152 +1,85 @@
 # 🧠 CORTEX
 
-**A tiered, self-auditing memory architecture for Claude Code.**
+**Project memory for Claude Code that doesn't forget: every chat archived and searchable, decisions tracked with their reasons, and the exact source one call away.**
 
-Claude Code is stateless between chats. CORTEX adds the missing layer: a hierarchical, provenance-tracked project memory with a coverage ledger, hook-driven capture and an always-loaded part that is bounded by construction. Claude opens every session already oriented, with decisions, rationale, conventions and open threads in context, without paying for them in context window.
+Claude Code is stateless between chats. CORTEX gives each project folder a memory that every chat in it shares:
 
-It's a single skill: markdown, three stdlib-only Python scripts and two hooks. It has no dependencies, no server, no vector database and no embeddings. The memory is plain markdown, so you can read it, `grep` it and `git diff` it.
+- a **curated core** that loads at the start of each chat (status, map, preferences);
+- **records**: typed, dated decisions, rejections, facts and relations, each with the chat and transcript line it came from, and old → new chains when something changes;
+- the **chat archive**: the redacted text of every recorded chat, line-addressed, so no detail is lost even after Claude Code deletes old transcripts;
+- **native memory tools** (`memory_search`, `memory_open`, …) and **hooks** that capture, archive, inject and re-anchor memory without being asked.
 
-> 📖 **[Open the user guide](skills/cortex/guide/cortex-user-guide.html)**: an illustrated walkthrough of the layers, the ledger and every command. Download it and open it in your browser.
+It runs locally: Python 3.9+ standard library and SQLite (FTS5), a small local MCP server for the tools, no embeddings, no cloud service. Memory is plain files you can read, `grep` and `git diff`.
+
+> 📖 **[Open the user guide](skills/cortex/guide/cortex-user-guide.html)**: an illustrated walkthrough of the layers, the features and every command. Download it and open it in your browser.
 
 ---
 
-## 🧬 Architecture
+## 🆕 New in v8, and how to use each feature
 
-CORTEX is built around six ideas.
-
-### 1. Tiered memory, bounded by construction
-Memory is a hierarchy, and each tier has a defined job, a size cap and a retrieval rule:
-
-| Tier | Where | Role |
+| Feature | What it does for you | How to use it |
 |---|---|---|
-| **L0** | `memory/RULES.md` + `memory/INDEX.md` + preferences, imported by a 6-line stub in `CLAUDE.md` | Always loaded: the rules, current status, and a detailed map of every topic file and recent session log |
-| **L1** | `memory/<topic>/*.md` | Current truth. ~150 lines per file, every fact source-tagged |
-| **L2** | `memory/sessions/*.md` | Per-chat history and fine detail. Searched by grep, read by window |
-| **L3** | raw Claude Code transcripts | Ground truth. Reached only through the redacting extractor |
+| 🗂️ **Total recall** | Every recorded chat is archived (secrets and emails masked) and searchable down to the transcript line. Details that records and notes left out are still there. | Automatic. Search finds archive passages too; open any with `memory_open "<chat> L<a>-<b>"`. |
+| 🎯 **Pinpoint search** | One call returns the current decisions, rejected options, old → new chains and the exact passages, each with a pointer, a snippet and a match strength (strong / partial / weak). | Claude calls `memory_search` itself. You can run `/cortex recall <question>`. |
+| 🧰 **Native memory tools** | Claude gets real tools (no Bash permission prompts): `memory_search`, `memory_open`, `memory_timeline`, `memory_brief`, `memory_record`. | Installed by `./install.sh` (registers the local MCP server). |
+| ☕ **Catch-up brief** | A new chat starts knowing what changed since your last session in this project: new decisions, rejections, status changes, open items. | Automatic at session start. On demand: `/cortex brief [since DATE]`. |
+| 📡 **Live cross-chat updates** | Running two chats on one project? When one records a decision, the other hears about it with your next message. | Automatic (inject hook). |
+| ⚓ **Survives compaction** | After Claude Code compacts a long chat, CORTEX puts back what this chat decided, rejected and left open. | Automatic (SessionStart after compaction). |
+| 🕰️ **Timeline** | One subject's whole history, old → new: what was decided, what replaced what and why. | `/cortex timeline <subject>` or `memory_timeline`. |
+| 📌 **Open items** | Every unanswered question and pending proposal, oldest first, ready to settle. | `/cortex open-items`. |
+| 📜 **Decision log** | `memory/DECISIONS.md`: every decision and rejection with its reason, date and source; replaced ones struck through. Shareable in a pull request. | `/cortex decisions`. |
+| 🔍 **Stale check** | Records that name code files which changed or vanished since are flagged in search results and listed on demand. | Automatic flags; `/cortex verify` for the full list. |
+| 🚫 **Rejected-option guard** | When you ask about something that was rejected, the rejection and its reason arrive first. | Automatic (inject hook). |
+| 🛡️ **Injection-aware** | Retrieved text is quoted as data; items that contain instruction-like text are flagged and never injected. | Automatic. |
+| 🔒 **Privacy follows the ledger** | Excluded chats are never archived (and their archive is deleted); skipped or paused ranges are never copied and are removed if skipped later; nothing is saved while CORTEX is off. The archive is git-ignored by default. | `/cortex exclude`, `/cortex pause`, `/cortex off`, `/cortex forget`. |
+| ⬆️ **One-step upgrade** | Moves a v5 or v7 project to v8: backup, records from past chats (v5), archive, index, rules. | `/cortex upgrade` (shows a dry run first). |
 
-Retrieval goes top-down. Claude starts at the map, follows it to the right L1 file, and descends to L2 and L3 only when a question demands it.
-
-**The map is deliberately detailed.** It is how Claude notices that memory covers a topic at all, so every topic file is listed with its distinctive nouns and the situations that should load it, and every recent session log with its topics, decisions and rejected options. Detail beats brevity here, so L0 is kept in check by structure rather than by trimming:
-
-- **The rules** (`memory/RULES.md`, ~1.8k tokens) are a fixed cost. They ship with the skill, are copied byte-for-byte into each project (no approval dialog, no path dependency), and `/cortex upgrade` refreshes them, project by project.
-- **The memory part is hierarchical**, so it scales with how active a project is without forgetting. History stays visible at decreasing resolution instead of falling off the map:
-  - the newest 15 session logs each have their own line; older ones are covered by up to 4 **week** lines, then up to 6 **month** lines, then **quarter** lines. A rollup line is a size-limited index (≤600 characters for a week, ≤900 for a month) of rejected options, decisions with specific reasons, and distinctive topics. Every log's own line stays in `sessions/README.md`, one hop away;
-  - a folder lists up to 10 topic files one by one; a bigger folder gets a **summary line** of its ~25 most distinctive nouns, and its per-file lines move to its `_index.md`;
-  - ≤8 dated "Where we are" bullets, ≤40 preference lines, and a 7,000-token backstop for runaway lines.
-
-  **Stress-tested** on a synthetic very active project (720 session logs over 90 days, 118 topic files) with 14 adversarial questions: paraphrased rejections, facts later reversed, near-duplicate names, an exact number from an old Q&A, a fact buried in yesterday's log, a question about something never stored, and an instruction planted inside a log. The flat layout used ~1.0k memory tokens and scored 12–13/14; it missed a 6-week-old rejection in both runs, because nothing on its map pointed to it. The hierarchical layout used ~4.3k tokens and scored 14/14, with every per-log and per-file line and all 1,251 nouns verified by script to still be in the maps. Unlimited rollups also scored 14/14 but used ~10.2k tokens. Every run ignored the planted instruction and said "not in memory" for the never-stored fact. These are single runs per layout, so read them as evidence, not proof.
-- **Consolidation** runs when a cap is crossed: it moves detail one level down, leaves a pointer, backs up first, and never deletes. Open items and "never/always" preferences never move.
-
-### 2. A coverage ledger: memory with accounting
-`memory/LEDGER.md` records, per chat, exactly which line ranges are `live` (recorded as the chat ran), `skipped` (before you started), `paused`, `excluded` or still `backfill`.
-
-- Claude marks a range as covered only after it has actually logged it, in the same step as the memory it describes.
-- Ranges are never relabelled and a live range is never stretched across a pause, so the ledger can't overstate what memory holds.
-- Backfill is incremental and idempotent. `/cortex all` works only on uncovered ranges, so you can run it as often as you like.
-- Chats open in another window are detected and deferred, never mined mid-flight.
-
-### 3. Hook-driven capture and recovery
-Two hooks run the loop without you thinking about it:
-
-- **`SessionStart`** injects a one-line state summary: this chat's id and transcript, the recording mode and any unlogged tails in other chats. Claude recovers those gaps first.
-- **`Stop`** watches the distance between the transcript and the ledger. When it grows too large, it gives Claude a rate-limited nudge to checkpoint. The hook never writes the ledger itself.
-
-A crashed, closed or abandoned chat therefore leaves a recoverable trace instead of a hole. Both hooks fail silent and do nothing in projects that haven't enabled CORTEX.
-
-### 4. Provenance, privacy and consent as defaults
-- **Provenance:** facts carry source tags (`<id8> L<line>`), and `/cortex recall` answers with `memory/<file>:<line>` citations, a confidence level and an explicit list of anything unverified.
-- **Privacy:** a redaction pass strips API keys, tokens, passwords and cloud credentials before text reaches memory. It never stores anyone's email or phone number, and never opens `.env*` or credential files.
-- **Consent:** anything that reads many chats, deletes memory or changes git, hooks or settings is shown to you first and waits for your OK.
-- **Control:** pause per chat or per project, exclude a chat for good, or `forget` a topic. Forgetting purges every match and records the label, never the content, so the topic is not re-learned.
-
-### 5. Memory that improves itself
-CORTEX doesn't wait for you to maintain it. It learns from three signals, with no command needed:
-
-- **Your corrections.** When you tell Claude "we already decided that" or "no, it's X", that is a recall miss. Claude fixes the fact, then fixes *why* memory missed it: a fact never stored gets stored, a fact the map couldn't reach gets its words added to the map. It costs nothing extra, because it happens in the turn where you corrected it.
-- **Its own struggles.** If answering took more than 4 memory files, the map was missing something, so Claude adds the missing words. A rejected option found only in an old session log is copied into its topic file, so it's never proposed again.
-- **An automatic self-test.** After 5 session logs have changed (at most once a day), the hook asks for a self-test. Claude turns recent decisions, rejected options and findings into questions, plus two facts from the oldest logs, so old and subtle material keeps being tested. A fresh background agent answers them with nothing but memory, and every miss is repaired at its cause. It says nothing in chat; the score shows in the `learning` row of `/cortex status`.
-
-Learning only ever edits memory, never the rules, so every project keeps the same behaviour. `/cortex status` shows the self-test trend and how many corrections memory has learned from. `/cortex config selftest=off` stops the automatic test, and `/cortex selftest` runs one on demand.
-
-### 6. Live status
-You can see CORTEX working, without it getting in your way.
-
-**At the start of every chat**, one line from the `SessionStart` hook. The bars are a 7-day sparkline of memory writes, so you can see at a glance whether memory is being kept up to date:
-
-```
-◉ CORTEX auto  ·  12 topics  ·  31 chats remembered  ·  ▁▃▅··█▂ 7d  ·  last write 2h ago  ·  ⚠ 1 unlogged tail, recovering  ·  /cortex status
-```
-
-**After a turn that changed memory**, a pulse naming exactly what was written. It is a before and after snapshot of `memory/`, so it never appears when nothing changed:
-
-```
-⟲ CORTEX synced  ·  L1 engineering/auth.md +6 · L2 2026-11-01_a1b2c3d4-auth.md +14  ·  ledger → 388
-```
-
-**Claude itself stays quiet about memory.** It never writes "Saved to memory" or "Session log: …" in a reply; the synced line already says what changed. It mentions memory only when something needs your OK, once per chat while recording is paused, when you run a `/cortex` command, or when it cites memory as the source of an answer.
-
-**When memory changes an answer, you see it, and how much.** The one exception to the silence is a recall line at the end of a reply, written only when the answer depended on something you didn't say in this chat:
-
-```
-◈ recalled · L2 · ~6 lines · 12w · Kafka rejected as event bus: ops burden for a team of four
-◈◈◈ recalled · L1–L2 · 6 sources · ~420 lines · Aug–Oct · search: OpenSearch, 3 shards, 180 ms p99, BM25-only rejected
-◈ recalled · L1 · 6w · superseded · fraud scoring: Stripe Radar → in-house model
-```
-
-- **The marker shows how much was drawn on,** by sources or lines read, whichever is larger: `◈` a small single recall, `◈◈` ~50–300 lines or 2–3 sources, `◈◈◈` over ~300 lines or 4+ sources.
-- **`~420 lines`** is about how much memory was read for this answer (topic files, session logs, chats). It's Claude's estimate, hence the `~`.
-- **`+ 2 from L0`** counts lines of the always-loaded index whose content went straight into the answer, such as a status bullet. Lines that only pointed the way, and your preferences, aren't counted. Nothing can measure the quieter influence of always-loaded text, so this counts what was used directly.
-- **Layers show how deep it dug:** `L0` is the always-loaded map, `L1` a topic file, `L2` a session log, `L3` a raw chat.
-- **Scope:** a single memory's age, or for a broad recall how many sources and the time span they cover.
-- **The gist:** up to 12 words for one source, 20 for many. The detail is in the answer itself.
-- **Flags get their own line,** so a warning is never buried: `superseded` (a newer decision replaced an older one, shown as old → new), `unverified` (no source), or `stale` (a temporary status, like "A/B running", older than 14 days; decisions and facts never go stale by age).
-
-Routine answers, preferences and the rules never get a line, so a recall line means memory earned its keep, and you can spot an outdated memory at a glance.
-
-**On demand**, `/cortex status` prints a dashboard: the memory budget and the rules version, routing quality (topic files missing from the map, how many facts carry sources), how much memory text has actually been pulled into this chat (it measures the size of the tool results, so `Read`, `cat` and `grep` on `memory/` all count, and it resets after compaction), what memory says is current (`now`), your open threads (`next`), ledger totals and anything needing `attention`:
-
-```
-◉ CORTEX status  ·  auto  ·  chat a1b2c3d4
-──────────────────────────────────────────────────────────────────
-activity   ···██··  2 memory writes in 7 days  ·  last 2h ago (engineering/auth.md)
-budget     memory ██████░░░░ 1.8k / 3k tok  ·  rules 1.8k tok (current)
-routing    map names 12/12 topic files  ·  64% of L1 facts sourced  ·  9/10 logs line-ranged
-learning   self-test 7/9 → 8/9 → 9/9 (last 2026-11-02)  ·  next self-test after 3 more changed logs  ·  4 corrections learned
-in context 3.5k tok always loaded  ·  pulled in this chat: 4 reads, 612 lines, ~2.4k tok  ·  ~7% of this chat's 61.9k context
-now        ▸ Auth moved to short-lived tokens, rollout to staging done
-           ▸ Billing webhooks rewritten, retries still flaky
-next       ◦ Add idempotency keys to the webhook handler
-           ◦ Load-test staging before the Friday cut
-ledger     940 lines recorded  ·  200 pending  ·  100 skipped on purpose
-this chat  last saved to memory 12m ago  ·  40 transcript lines since
-settings   recording auto  ·  hooks ✓  ·  logs on  ·  commit no (memory/ git-ignored)
-──────────────────────────────────────────────────────────────────
-attention  ⚠ 1 chat with unlogged tails (9f3e21aa)
-           ⚠ engineering/deploy.md not updated in 48 days
-           ⚠ consolidate: 11 session logs listed in the map (cap 10)
-suggest    ▸ /cortex all  (recover unlogged and untracked chats)
-```
-
-The values in these samples are illustrative; the layout is real output. Turn the hooks' lines off with `/cortex config logs=off`, or set `CORTEX_QUIET=1` in the environment.
+Everything from earlier versions stays: start / pause / resume / off / on, exclude / include, forget, the coverage ledger, `/cortex all` backfill, status, audit, self-test.
 
 ---
 
-## ✨ What that gets you
+## 🧬 How it works
 
-| | |
-|---|---|
-| ⚡ **Cold start in seconds** | A new chat begins already knowing the project's decisions, conventions and open questions. |
-| 🔎 **Cited recall** | Ask `/cortex recall why did we pick Postgres?` and get an answer with file and line references. |
-| ⏪ **Retroactive memory** | `/cortex all` mines the transcripts you already have and merges them into current truth. |
-| 🛡️ **Self-audit** | `/cortex audit` checks for duplicated facts, index and file drift, and files over their caps. A cold-start test is available too. |
-| 🧾 **Auditable** | Every claim traces to a chat and a line, and every range to the ledger. |
-| 🪶 **Cheap** | You pay for a small index on every chat. Everything else is pulled in on demand. |
+**Storage, three layers with one source of truth each.**
+1. **Curated core** (`memory/INDEX.md`, topic files, session logs, preferences): written by Claude, read whole, always loaded in part. Small by construction.
+2. **Records** (`memory/records.jsonl`): append-only, one typed item per line (`decision`, `rejection`, `fact`, `status`, `open`, `lesson`, `preference`, `relation`) with `valid_from`, `supersedes` and `source {chat, line}`. Written only through `cortex_write` / `memory_record`, which refuses silent duplicates and asks whether a conflicting item replaces or coexists with the old one. A background extractor (Haiku) records each substantive turn, and a backfill builds records from past chats.
+3. **Chat archive** (`memory/chats/<chat>.txt`): the readable, redacted text of every recorded chat, each block tagged with its line in the original transcript. Raw text is the stored value; records are pointers into it.
+
+**Retrieval, one deterministic pipeline (~70 ms).** An incremental SQLite FTS5 index covers records, note chunks and archive passages. Each passage is also indexed under the facts drawn from its lines ("facts as keys"). BM25 ranks the question and Claude's alternative wordings, fused by reciprocal rank; records about the subjects the question names are boosted. The answer pack is **coverage-aware**: records first, then passages that add lines the records don't already cover, without near-duplicates, each with a pointer and a query-focused snippet. A subject graph with Personalized PageRank exists as an opt-in re-ranker (`CORTEX_PPR=1`); it did not help on held-out questions, so it is off.
+
+**Hooks.** `SessionStart` (orientation, catch-up brief, archive catch-up, re-anchoring after compaction) · `UserPromptSubmit` (relevant memory and other chats' news, ≤ ~400 tokens) · `PreToolUse` / `PostToolUse` (protect script-owned files, add provenance, lint) · `Stop` (archive the chat, capture records in the background, logging nudge). All are silent outside CORTEX projects, and the v8 ones stay silent in projects still on v5.
+
+---
+
+## 📊 Measured, not claimed
+
+Tested on a real project (7 chats, 6,107 transcript lines) with questions written by separate agents that saw only the transcripts. Gold evidence lines were never shown to the builder. Raw results stay local because they contain private project text; the tools to reproduce them are in `tests/tools/`.
+
+**Retrieval** (share of the lines each answer comes from that appear in the result pack; strict ±3 lines; no LLM judge involved):
+
+| | v7 search | v8 search |
+|---|---:|---:|
+| 90 held-out questions, all | 0.531 | **0.609** (+7.8 pts) |
+| held-out, relational (60) | 0.468 | **0.561** (+9.3 pts) |
+| held-out, finds ≥1 source line | 0.789 | **0.856** |
+| 64 development questions | 0.627 | **0.746** |
+
+**Answer accuracy** (Claude Sonnet answering, majority-of-3 per-fact judge, 2 runs per arm): see the table filled in by the latest run below.
+
+ANSWER_TABLE_PLACEHOLDER
+
+**What didn't work, published on purpose:**
+- **The graph:** typed relations plus Personalized PageRank never beat plain ranking on held-out questions. It's off by default.
+- **Records-first v7:** it scored below curated v5 on unseen questions (0.792 vs 0.828, not significant). That's why v8 makes the raw archive the stored value and records the index.
+- **"Facts as separate documents"** hurt retrieval (it matches LongMemEval's finding). Facts work as keys on the raw passage.
+- **The first judge was the main error source:** it marked complete answers partial. It was rebuilt as per-fact grading, majority of 3.
+- **Statistical power:** 90 questions only resolve differences of about 8 points. Smaller differences above are directional, not proven.
 
 ---
 
 ## 🚀 Install
 
-**Requirements:** [Claude Code](https://claude.com/claude-code) and Python 3.9 or newer as `python3`.
+**Requirements:** [Claude Code](https://claude.com/claude-code) and Python 3.9 or newer as `python3` (with SQLite FTS5, which standard builds include).
 
 ```bash
 git clone https://github.com/arth17singh/cortex.git
@@ -154,68 +87,40 @@ cd cortex
 ./install.sh
 ```
 
-That copies the skill to `~/.claude/skills/cortex` and offers to register the hooks (see below). Other options:
+That copies the skill to `~/.claude/skills/cortex` and offers to register the hooks and the memory tools. Other options:
 
 ```bash
-./install.sh --hooks     # install the skill and the hooks without prompting
-./install.sh --no-hooks  # skill only
-./install.sh --link      # symlink instead: `git pull` here updates the skill everywhere
-./install.sh --project   # install into ./.claude/skills and ./.claude/settings.json of this project only
-./install.sh --uninstall-hooks   # remove the hooks again
+./install.sh --hooks            # skill, hooks and memory tools without prompting
+./install.sh --no-hooks         # skill only
+./install.sh --link             # symlink instead: `git pull` here updates the skill everywhere
+./install.sh --project          # install into this project only (./.claude/, project-scoped tools)
+./install.sh --uninstall-hooks  # remove the hooks and the memory tools again
 ```
 
-An existing skill install is moved to `cortex-backups/cortex.bak-<timestamp>` next to the `skills/` folder, never overwritten.
+An existing install is moved to `cortex-backups/cortex.bak-<timestamp>`, never overwritten. `settings.json` is backed up before any change, and other hooks are left alone. By hand: merge [`hooks/settings-snippet.json`](hooks/settings-snippet.json) into `~/.claude/settings.json` and run `claude mcp add --scope user cortex -- python3 ~/.claude/skills/cortex/scripts/cortex_mcp.py`.
 
-### 🪝 Hooks
-
-The hooks are what make CORTEX proactive, so you should install them. They are two entries in `settings.json` that run `scripts/cortex_hook.py`:
-
-| Hook | What it does |
-|---|---|
-| `SessionStart` | Tells Claude this chat's id and transcript, the recording mode, and any unlogged gaps in other chats that need recovering |
-| `Stop` | When the ledger falls far behind the transcript, gives Claude a gentle, rate-limited nudge to log what's worth keeping |
-
-`install.sh` merges them into the existing hook arrays without touching your other hooks. It backs up `settings.json` first, is safe to re-run, and re-parses the result to check it. Both hooks do nothing in projects that haven't enabled CORTEX, and they exit quietly if anything goes wrong.
-
-To add them by hand, merge [`hooks/settings-snippet.json`](hooks/settings-snippet.json) into `~/.claude/settings.json`. You can also run `python3 hooks/install_hooks.py <settings.json> <path-to-cortex_hook.py>` yourself, or use `/cortex config hooks=install` from inside Claude Code.
-
-**Manual install:** copy `skills/cortex/` to `~/.claude/skills/cortex/`.
-
-### Updating
+### Updating and upgrading projects
 
 ```bash
-cd cortex && git pull && ./install.sh --no-hooks   # hooks are already registered
+cd cortex && git pull && ./install.sh --hooks
 ```
 
-Then, in each project that already uses CORTEX, run `/cortex upgrade` once. It shows what will change and backs up first. Projects you don't upgrade keep working on their current rules, so you can upgrade each one when it suits you, for example after a deadline.
-
-### Verify
-
-Open Claude Code in any project and run:
-
-```
-/cortex help
-```
+Then run `/cortex upgrade` once in each project. It shows a dry run (chats, lines, estimated model calls), backs up `memory/`, and moves the project to v8. A v7 project takes seconds; a v5 project needs a backfill of records from its past chats, which takes minutes. Projects you don't upgrade keep working as before.
 
 ---
 
 ## ⚡ Quick start
 
 ```text
-/cortex start              # record this chat from now on (builds memory/ on first run)
-/cortex all                # backfill every past chat that isn't tracked yet
-/cortex status             # coverage, settings, size vs. budget, next suggested action
-/cortex upgrade            # move an existing project to the current rules and layout
+/cortex start                 # record this chat from now on (builds memory/ on first run)
+/cortex all                   # backfill past chats that aren't tracked yet
 /cortex recall why did we pick Postgres over DynamoDB?
+/cortex brief                 # what changed lately, across every chat
+/cortex timeline auth service # one subject's history, old -> new
+/cortex open-items            # questions and proposals still waiting for a decision
+/cortex decisions             # write memory/DECISIONS.md
+/cortex status                # coverage, settings, size, next suggested action
 ```
-
-On the first run in a project, CORTEX builds `memory/` from your docs and code, copies its rules to `memory/RULES.md`, adds a short import block to `CLAUDE.md`, and asks you:
-
-1. the **recording mode** (`auto` or `manual`),
-2. whether to install the **hooks**, and
-3. whether `memory/` should be **committed to git** or ignored.
-
-Nothing is installed or changed until you approve it.
 
 ---
 
@@ -224,20 +129,35 @@ Nothing is installed or changed until you approve it.
 | Command | What it does |
 |---|---|
 | `/cortex help` | Lists the commands, with a short status line |
-| `/cortex upgrade` | Moves a project to the current rules and layout (backs up first, refuses while another chat is open) |
+| `/cortex upgrade` | Moves a project to v8 (dry run first, backs up, refuses while another chat is open) |
 | `/cortex start [--from-chat-start]` | Records this chat from now on (or from its first line) |
-| `/cortex all [options]` | Backfills untracked past chats. It's safe to re-run. Options: `only <chat>`, `since DATE`, `last N`, `exclude X`, `include-skipped`, `--yes` |
-| `/cortex status` | Shows coverage, settings, memory size against budget and warnings |
-| `/cortex save [note]` | Runs a full checkpoint, or stores a note even when paused |
-| `/cortex pause` / `resume` | Stops or restarts **saving** for this chat, or with `--project` for the whole project. Memory is still read |
-| `/cortex pause --read` / `resume --read` | Stops or restarts **reading** from that point on: no memory lookups or citations, and nothing known only from memory is brought in, while what's already been discussed stays usable. The chat is still saved. With `--project`, new chats load only the rules, which is a clean slate |
-| `/cortex off` / `on` | Turns CORTEX off entirely from that point on: no reading and no saving, while what's already been discussed stays usable. With `--project`, new chats load nothing and the hooks go quiet, which is a clean slate |
-| `/cortex exclude <chat>` / `include <chat>` | Permanently leaves a chat out of memory, or puts it back |
-| `/cortex forget <topic>` | Finds every mention, shows exact deletions, and keeps the topic from coming back |
-| `/cortex recall <question>` | Answers from memory with citations and a confidence level |
-| `/cortex audit` | Checks that memory is consistent, not duplicated and within its size caps |
-| `/cortex selftest` | Quizzes memory on recent decisions and rejections with a fresh agent, and repairs every miss |
-| `/cortex config [key=value]` | Sets `recording`, `commit`, `timezone`, `exclude-default`, `logs`, `rules`, `selftest` or `hooks` |
+| `/cortex all [options]` | Backfills untracked past chats; safe to re-run. Options: `only <chat>`, `since DATE`, `last N`, `exclude X`, `include-skipped`, `--yes` |
+| `/cortex recall <question>` | Answers from memory with exact pointers, quotes and match strength |
+| `/cortex brief [since DATE]` | Catch-up: what changed across every chat (default: last 3 days) |
+| `/cortex timeline <subject>` | One subject's history, old → new, with reasons and pointers |
+| `/cortex open-items` | Unresolved questions and proposals, oldest first |
+| `/cortex decisions` | Renders the decision log `memory/DECISIONS.md` |
+| `/cortex verify` | Records naming code files that changed or vanished since they were recorded |
+| `/cortex status` | Coverage, settings, memory size against budget, warnings |
+| `/cortex save [note]` | Full checkpoint, or a note even when paused |
+| `/cortex pause` / `resume` | Stops or restarts **saving** (this chat, or `--project`). Memory is still read |
+| `/cortex pause --read` / `resume --read` | Stops or restarts **reading** from that point on; the chat is still saved |
+| `/cortex off` / `on` | Turns CORTEX off entirely from that point on: no reading, no saving, no archiving |
+| `/cortex exclude <chat>` / `include <chat>` | Permanently leaves a chat out of memory (and its archive), or puts it back |
+| `/cortex forget <topic>` | Finds every mention (records, notes, archive), shows exact deletions, keeps it from coming back |
+| `/cortex audit` | Checks memory is consistent, not duplicated and within its caps |
+| `/cortex selftest` | Quizzes memory on recent decisions with a fresh agent, and repairs every miss |
+| `/cortex config [key=value]` | `recording`, `commit`, `timezone`, `exclude-default`, `logs`, `rules`, `selftest`, `hooks` |
+
+### Native tools (what Claude calls)
+
+| Tool | Purpose |
+|---|---|
+| `memory_search(question, alternatives?)` | Records, rejected options, changes and archive passages, with pointers and match strength |
+| `memory_open(pointer)` | The exact words behind a pointer (`"<chat8> L<a>-<b>"` or `"<file>:<line>"`) |
+| `memory_timeline(subject)` | One subject's history |
+| `memory_brief(since?)` | What changed lately across all chats |
+| `memory_record(type, subjects, statement, why?, …)` | Record a decision, rejection, fact, … (dedupe and conflict checks included) |
 
 ---
 
@@ -245,31 +165,40 @@ Nothing is installed or changed until you approve it.
 
 ```
 cortex/
-├── install.sh                      installer (copy / --link / --project, optional hooks)
+├── install.sh                       installer (copy / --link / --project, hooks + memory tools)
 ├── hooks/
-│   ├── settings-snippet.json       the two hook entries, ready to merge
-│   └── install_hooks.py            safe, idempotent merge/remove into settings.json
-├── README.md
-├── LICENSE
-└── skills/cortex/
-    ├── SKILL.md                    the skill: every subcommand's behaviour
-    ├── guide/cortex-user-guide.html   illustrated user guide
-    ├── reference/                  rules.md (the rules), the CLAUDE.md stub, build steps, ledger and protocol templates
-    └── scripts/
-        ├── ledger_scan.py          coverage scanner and transcript search
-        ├── cortex_status.py        the /cortex status dashboard
-        ├── selftest.py             picks recent decisions and rejections to quiz memory on
-        ├── extract_transcript.py   readable, redacted transcript extraction
-        └── cortex_hook.py          SessionStart / Stop hook
+│   ├── settings-snippet.json        the hook entries, ready to merge
+│   └── install_hooks.py             safe, idempotent merge/remove into settings.json
+├── skills/cortex/
+│   ├── SKILL.md                     every /cortex subcommand's behaviour
+│   ├── guide/cortex-user-guide.html illustrated user guide
+│   ├── reference/                   rules.md (v8), rules-v5.md, CLAUDE.md block, hooks-v8.json, mcp.json, templates
+│   └── scripts/
+│       ├── cortex_search.py         the search: pack, pointers, --open, match strength
+│       ├── cortex_index.py          incremental SQLite FTS5 index + subject graph
+│       ├── cortex_archive.py        redacted, line-addressed chat archive
+│       ├── cortex_mcp.py            the native memory tools (local MCP server, stdio)
+│       ├── cortex_tools.py          brief, timeline, open-items, decisions, verify, live updates, re-anchoring
+│       ├── cortex_write.py          the only write path for records
+│       ├── cortex_capture.py        Stop hook: archive + background record capture
+│       ├── cortex_inject.py         UserPromptSubmit hook: relevant memory + other chats' news
+│       ├── cortex_guard.py          PreToolUse/PostToolUse: ownership, provenance, lint
+│       ├── cortex_hook.py           SessionStart/Stop: orientation, catch-up, re-anchor, nudges
+│       ├── cortex_backfill.py       records from past chats (Haiku, background), with conflict judging
+│       ├── cortex_upgrade.py        v5 / v7 → v8 migration
+│       ├── cortex_lib.py, cortex_render.py, ledger_scan.py, extract_transcript.py, cortex_status.py, selftest.py
+└── tests/tools/                     the evaluation harness (runner, per-fact judge, retrieval check, arm builder)
 ```
 
 ---
 
 ## 💡 Good to know
 
-- **Transcripts expire.** Claude Code deletes old transcripts after `cleanupPeriodDays` (default 30, set in `~/.claude/settings.json`). That limits how far back `/cortex all` can reach, so run it early. `/cortex status` warns you about chats approaching that limit.
-- **`/cortex` is user-invoked only.** The skill sets `disable-model-invocation`, so Claude won't start it on its own.
-- **Uninstall:** run `./install.sh --uninstall-hooks`, delete `~/.claude/skills/cortex`, and delete the CORTEX block from your project's `CLAUDE.md` (it's wrapped in `<!-- CORTEX:BEGIN -->` and `<!-- CORTEX:END -->` markers). Your `memory/` folder is yours to keep or delete.
+- **The archive is local and git-ignored.** `memory/chats/` and `memory/.cache/` each carry their own `.gitignore`. Secrets and email addresses are masked when chats are archived.
+- **Transcripts expire, the archive doesn't.** Claude Code deletes old transcripts after `cleanupPeriodDays` (30 by default). CORTEX archives each chat as it goes, so set that up early in a project.
+- **Background model use is small:** one Haiku call after substantive replies in v8 projects (capture), and a one-time backfill on upgrade from v5. Search itself never calls a model.
+- **`/cortex` is user-invoked only.** The skill sets `disable-model-invocation`; Claude uses the memory tools on its own.
+- **Uninstall:** `./install.sh --uninstall-hooks`, delete `~/.claude/skills/cortex`, and remove the CORTEX block from your project's `CLAUDE.md` (between `<!-- CORTEX:BEGIN -->` and `<!-- CORTEX:END -->`). Your `memory/` folder is yours to keep or delete.
 
 ---
 

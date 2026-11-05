@@ -3,9 +3,9 @@
 #   ./install.sh            copy into ~/.claude/skills/cortex
 #   ./install.sh --link     symlink instead (edits here go live; `git pull` updates)
 #   ./install.sh --project  install into ./.claude/skills/cortex of the current dir
-#   ./install.sh --hooks    also register the SessionStart/Stop hooks (no prompt)
+#   ./install.sh --hooks    also register the hooks and the memory tools (no prompt)
 #   ./install.sh --no-hooks skip the hooks (no prompt)
-#   ./install.sh --uninstall-hooks   remove the hooks from settings.json
+#   ./install.sh --uninstall-hooks   remove the hooks and the memory tools again
 set -euo pipefail
 
 SRC="$(cd "$(dirname "$0")" && pwd)/skills/cortex"
@@ -36,6 +36,7 @@ if [ "$PROJECT" = 1 ]; then SETTINGS="$PWD/.claude/settings.json"; HOOK_SCRIPT='
 else SETTINGS="$CONFIG/settings.json"; HOOK_SCRIPT="$DEST/scripts/cortex_hook.py"; fi
 if [ "$REMOVE" = 1 ]; then
   python3 "$ROOT/hooks/install_hooks.py" "$SETTINGS" "$HOOK_SCRIPT" --remove
+  if command -v claude >/dev/null; then claude mcp remove cortex >/dev/null 2>&1 && echo "memory tools removed"; fi
   exit 0
 fi
 mkdir -p "$DEST_ROOT"
@@ -53,12 +54,24 @@ echo "Next: open Claude Code in a project and run /cortex help"
 
 if [ "$HOOKS" = ask ]; then
   if [ -t 0 ]; then
-    printf '\nRegister the SessionStart/Stop hooks in %s? (recommended) [y/N] ' "$SETTINGS"
+    printf '\nRegister the CORTEX hooks in %s and the memory tools (MCP)? (recommended) [y/N] ' "$SETTINGS"
     read -r reply; case "$reply" in [yY]*) HOOKS=yes ;; *) HOOKS=no ;; esac
   else HOOKS=no; fi
 fi
 if [ "$HOOKS" = yes ]; then
   python3 "$ROOT/hooks/install_hooks.py" "$SETTINGS" "$HOOK_SCRIPT"
+  if command -v claude >/dev/null; then
+    if [ "$PROJECT" = 1 ]; then SCOPE=project; MCP_SCRIPT="$PWD/.claude/skills/cortex/scripts/cortex_mcp.py"
+    else SCOPE=user; MCP_SCRIPT="$DEST/scripts/cortex_mcp.py"; fi
+    claude mcp remove --scope "$SCOPE" cortex >/dev/null 2>&1
+    if claude mcp add --scope "$SCOPE" cortex -- python3 "$MCP_SCRIPT" >/dev/null 2>&1; then
+      echo "memory tools registered ($SCOPE scope): memory_search, memory_open, memory_timeline, memory_brief, memory_record"
+    else
+      echo "Could not register the memory tools; run: claude mcp add --scope $SCOPE cortex -- python3 $MCP_SCRIPT"
+    fi
+  else
+    echo "claude CLI not found: register the memory tools later with: claude mcp add --scope user cortex -- python3 $DEST/scripts/cortex_mcp.py"
+  fi
 else
   echo "Hooks skipped. Add them later with: ./install.sh --hooks   (or /cortex config hooks=install)"
 fi

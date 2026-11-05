@@ -1,10 +1,66 @@
 {
   "hooks": {
     "SessionStart": [
-      {"hooks": [{"type": "command", "command": "python3 \"$HOME/.claude/skills/cortex/scripts/cortex_hook.py\"", "timeout": 20}]}
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/skills/cortex/scripts/cortex_hook.py",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/skills/cortex/scripts/cortex_inject.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|Bash|Read|Grep|Glob|mcp__cortex__memory_record",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/skills/cortex/scripts/cortex_guard.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/skills/cortex/scripts/cortex_guard.py",
+            "timeout": 5
+          }
+        ]
+      }
     ],
     "Stop": [
-      {"hooks": [{"type": "command", "command": "python3 \"$HOME/.claude/skills/cortex/scripts/cortex_hook.py\"", "timeout": 10}]}
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/skills/cortex/scripts/cortex_hook.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/skills/cortex/scripts/cortex_capture.py",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }

@@ -96,10 +96,11 @@
     <div>
       <p class="font-semibold">The short version</p>
       <p>In each project folder, run <span class="cmd">/cortex all</span> once (or <span class="cmd">/cortex start</span> if past chats don't matter). After that, every chat records itself, built-in hooks keep it on track, and memory repairs its own blind spots. You don't re-run anything to capture new work.</p>
-      <p class="mt-1 text-sm muted">Project set up with an older version? Run <span class="cmd">/cortex upgrade</span> there once.</p>
+      <p class="mt-1 text-sm muted">Project set up with an older version? Run <span class="cmd">/cortex upgrade</span> there once. In v8, every chat is also archived word for word and Claude gets native memory tools, so even small details are one search away.</p>
     </div>
   </div>
   <nav class="flex flex-wrap gap-2 mt-6 text-sm" aria-label="Sections">
+    <a class="navlink" href="#new">New in v8</a>
     <a class="navlink" href="#how">How it works</a>
     <a class="navlink" href="#quickstart">Quick start</a>
     <a class="navlink" href="#commands">Commands</a>
@@ -110,6 +111,71 @@
     <a class="navlink" href="#files">Files and uninstall</a>
   </nav>
 </header>
+
+
+<!-- ============================================================ NEW IN V8 -->
+<section id="new" class="mb-14">
+  <h2 class="text-2xl font-bold mb-2">New in v8: nothing gets lost, and the exact source is one call away</h2>
+  <p class="prose-w mb-6">Earlier versions kept a curated summary and a store of records. Summaries drop details, so v8 adds a word-for-word archive of every recorded chat. Records and notes now act as pointers into that archive, and Claude gets real tools to search and open it. Everything below is local and needs no setup beyond <code>./install.sh</code> and <span class="cmd">/cortex upgrade</span>.</p>
+  <div class="grid lg:grid-cols-2 gap-4">
+      <div class="card bg-base-200"><div class="card-body p-5">
+        <h3 class="font-semibold text-lg">🗂️ Total recall</h3>
+        <p class="text-sm">Every recorded chat is archived in <code>memory/chats/</code> as readable text, secrets and emails masked, each block tagged with its transcript line. Old transcripts that Claude Code deletes are no longer lost.</p>
+        <p class="text-sm mt-1"><strong>How:</strong> automatic. Excluded chats are never archived, paused and skipped parts are never copied, and the folder is git-ignored.</p>
+      </div></div>
+      <div class="card bg-base-200"><div class="card-body p-5">
+        <h3 class="font-semibold text-lg">🎯 Pinpoint search</h3>
+        <p class="text-sm">One search returns the current decisions, rejected options, how things changed, and the exact chat passages, each with a pointer like <code>chat 54a2594a L82</code>, a snippet and a match strength (strong, partial or weak).</p>
+        <p class="text-sm mt-1"><strong>How:</strong> Claude calls <code>memory_search</code> on its own. You can ask with <span class="cmd">/cortex recall &lt;question&gt;</span>.</p>
+      </div></div>
+      <div class="card bg-base-200"><div class="card-body p-5">
+        <h3 class="font-semibold text-lg">🧰 Native memory tools</h3>
+        <p class="text-sm">Claude gets five tools: <code>memory_search</code>, <code>memory_open</code> (exact words behind a pointer), <code>memory_timeline</code>, <code>memory_brief</code> and <code>memory_record</code>. Being real tools, they work without Bash permission prompts.</p>
+        <p class="text-sm mt-1"><strong>How:</strong> <code>./install.sh</code> registers them (a small local server, no network).</p>
+      </div></div>
+      <div class="card bg-base-200"><div class="card-body p-5">
+        <h3 class="font-semibold text-lg">☕ Catch-up brief</h3>
+        <p class="text-sm">A new chat starts knowing what changed since your last session in this project: decisions, rejections, status changes and open items, from every chat.</p>
+        <p class="text-sm mt-1"><strong>How:</strong> automatic at session start; on demand <span class="cmd">/cortex brief</span>.</p>
+      </div></div>
+      <div class="card bg-base-200"><div class="card-body p-5">
+        <h3 class="font-semibold text-lg">📡 Live updates between chats</h3>
+        <p class="text-sm">Two chats open on one project? When one records a decision, the other hears about it with your next message, once.</p>
+        <p class="text-sm mt-1"><strong>How:</strong> automatic.</p>
+      </div></div>
+      <div class="card bg-base-200"><div class="card-body p-5">
+        <h3 class="font-semibold text-lg">⚓ Survives compaction</h3>
+        <p class="text-sm">When Claude Code compacts a long chat, CORTEX puts back what this chat decided, rejected and left open, with pointers.</p>
+        <p class="text-sm mt-1"><strong>How:</strong> automatic.</p>
+      </div></div>
+      <div class="card bg-base-200"><div class="card-body p-5">
+        <h3 class="font-semibold text-lg">🕰️ Timeline</h3>
+        <p class="text-sm">One subject’s whole history, old to new: what was decided, what replaced what and why, what was rejected.</p>
+        <p class="text-sm mt-1"><strong>How:</strong> <span class="cmd">/cortex timeline &lt;subject&gt;</span>.</p>
+      </div></div>
+      <div class="card bg-base-200"><div class="card-body p-5">
+        <h3 class="font-semibold text-lg">📌 Open items and 📜 decision log</h3>
+        <p class="text-sm">Questions and proposals still waiting for a decision, oldest first; and <code>memory/DECISIONS.md</code>, every decision and rejection with its reason, ready to share.</p>
+        <p class="text-sm mt-1"><strong>How:</strong> <span class="cmd">/cortex open-items</span>, <span class="cmd">/cortex decisions</span>.</p>
+      </div></div>
+      <div class="card bg-base-200"><div class="card-body p-5">
+        <h3 class="font-semibold text-lg">🔍 Stale check</h3>
+        <p class="text-sm">Records that name code files which changed or disappeared since are flagged in results.</p>
+        <p class="text-sm mt-1"><strong>How:</strong> automatic flags; full list with <span class="cmd">/cortex verify</span>.</p>
+      </div></div>
+      <div class="card bg-base-200"><div class="card-body p-5">
+        <h3 class="font-semibold text-lg">🛡️ Safe by default</h3>
+        <p class="text-sm">Rejected options arrive first when they matter. Retrieved text is treated as quoted data, and anything that looks like an instruction is flagged and never injected.</p>
+        <p class="text-sm mt-1"><strong>How:</strong> automatic.</p>
+      </div></div>
+  </div>
+  <div class="alert mt-6 prose-w border-l-4" style="border-left-color: var(--color-info)">
+    <div>
+      <p class="font-semibold">Measured, not claimed</p>
+      <p class="text-sm">On 90 unseen questions about a real project, v8 search put the source lines of the answer into its results 61% of the time against 53% for v7 (relational questions: 56% vs 47%). The subject graph did not help on unseen questions, so it is off by default. Answer accuracy, judge details and what didn’t work are in the README.</p>
+    </div>
+  </div>
+</section>
 
 <!-- ============================================================ HOW -->
 <section id="how" class="mb-14">
@@ -360,6 +426,61 @@
     </div></article>
   </div>
   <p class="text-sm muted mt-4"><span class="cmd">/cortex help</span> lists all commands, with a 3-line status.</p>
+
+  <h3 class="text-lg font-semibold mt-8 mb-3 grp-title grp-look">Catch up and look back (v8)</h3>
+  <div class="grid lg:grid-cols-2 gap-4 grp-look">
+
+    <article class="card bg-base-200" id="cmd-brief"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex brief</h4><span class="badge badge-sm soft tone-scope">safe to re-run</span></div>
+      <p><strong>What changed lately, across every chat in this project.</strong></p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li>New decisions, rejections, status changes and open items, newest first, each with its source.</li>
+        <li>Default: the last 3 days. New chats get a short version automatically when something changed.</li>
+      </ul>
+      <pre>/cortex brief
+/cortex brief since 2026-10-01</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-timeline"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex timeline</h4><span class="badge badge-sm soft tone-scope">read-only</span></div>
+      <p><strong>One subject’s history, old to new.</strong></p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li>Every decision, change, rejection and fact about it, with dates, reasons and pointers; replaced items are marked.</li>
+        <li>Good for “how did this evolve?” and “what did we use before?”.</li>
+      </ul>
+      <pre>/cortex timeline auth service</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-open-items"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex open-items</h4><span class="badge badge-sm soft tone-scope">read-only</span></div>
+      <p><strong>Questions and proposals still waiting for a decision.</strong></p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li>Oldest first, split into questions and proposals.</li>
+        <li>Answer one and Claude records the decision, closing the open item.</li>
+      </ul>
+      <pre>/cortex open-items</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-decisions"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex decisions</h4><span class="badge badge-sm soft tone-ask">writes a file</span></div>
+      <p><strong>The decision log, as a file you can share.</strong></p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li>Writes <code>memory/DECISIONS.md</code>: every decision and rejection with its reason, date and source.</li>
+        <li>Replaced decisions are struck through, so the history stays visible.</li>
+      </ul>
+      <pre>/cortex decisions</pre>
+    </div></article>
+
+    <article class="card bg-base-200" id="cmd-verify"><div class="card-body p-5">
+      <div class="flex items-center gap-2 flex-wrap"><h4 class="cmd text-lg">/cortex verify</h4><span class="badge badge-sm soft tone-scope">read-only</span></div>
+      <p><strong>Finds memory that may be out of date.</strong></p>
+      <ul class="text-sm list-disc pl-5 space-y-1 ">
+        <li>Lists records that name code files which changed or disappeared since they were recorded.</li>
+        <li>Claude checks each against the code and records the correction where memory is wrong.</li>
+      </ul>
+      <pre>/cortex verify</pre>
+    </div></article>
+  </div>
 </section>
 
 <!-- ============================================================ LEARNING -->
