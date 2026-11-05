@@ -38,13 +38,18 @@ def settings(path, hooks=None, allow=(), env=None):
 
 
 def code_only(src, dst):
-    shutil.copytree(src, dst, symlinks=True, ignore=lambda d, names: ['memory', '.claude', '.mcp.json', 'CLAUDE.md']
+    shutil.copytree(src, dst, symlinks=True, ignore=lambda d, names: ['memory', '.claude', '.mcp.json']
                     if Path(d) == Path(src) else [])
+    md = dst / 'CLAUDE.md'                      # keep the project's own instructions, without any CORTEX block
+    if md.exists():
+        md.write_text(re.sub(r'\n?<!-- CORTEX:BEGIN.*?<!-- CORTEX:END -->\n?', '\n', md.read_text(encoding='utf-8'),
+                             flags=re.S), encoding='utf-8')
 
 
 def arm_none(dst, project, title):
     code_only(project, dst)
-    (dst / 'CLAUDE.md').write_text(f'# {title}\n', encoding='utf-8')
+    if not (dst / 'CLAUDE.md').exists():
+        (dst / 'CLAUDE.md').write_text(f'# {title}\n', encoding='utf-8')
     settings(dst)
 
 
@@ -56,8 +61,9 @@ def arm_grep(dst, project, notes, title):
             'records.jsonl', 'aliases.json', 'GRAPH.md', 'entities.md', 'DECISIONS.md'))
     shutil.copytree(Path(project) / 'memory' / 'chats', dst / 'chats', ignore=shutil.ignore_patterns('.*'))
     where = '`notes/` (topic files and per-chat session logs) and ' if notes else ''
+    head = (dst / 'CLAUDE.md').read_text(encoding='utf-8').rstrip() + '\n' if (dst / 'CLAUDE.md').exists() else f'# {title}\n'
     (dst / 'CLAUDE.md').write_text(
-        f'# {title}\n\n## Project memory\nThe project history is in {where}`chats/` (the full text of every past chat, one '
+        head + f'\n## Project memory\nThe project history is in {where}`chats/` (the full text of every past chat, one '
         'file per chat, each block tagged with its transcript line). Before answering a question about the project, '
         f'grep them (`grep -rn -i <term> {"notes/ " if notes else ""}chats/`) and read around the hits. If the answer '
         'is not there, say so instead of guessing.\n', encoding='utf-8')
