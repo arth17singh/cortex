@@ -20,7 +20,7 @@ It runs locally: Python 3.9+ standard library and SQLite (FTS5), a small local M
 | Feature | What it does for you | How to use it |
 |---|---|---|
 | 🗂️ **Total recall** | Every recorded chat is archived (secrets and emails masked) and searchable down to the transcript line. Details that records and notes left out are still there. | Automatic. Search finds archive passages too; open any with `memory_open "<chat> L<a>-<b>"`. |
-| 🎯 **Pinpoint search** | One call returns the current decisions, rejected options, old → new chains and the exact passages, each with a pointer, a snippet and a match strength (strong / partial / weak). | Claude calls `memory_search` itself. You can run `/cortex recall <question>`. |
+| 🎯 **Pinpoint search** | One call returns the current decisions, rejected options, old → new chains and the exact passages, each with a pointer, a snippet and a match strength (strong / partial / weak). | Claude calls `memory_search` itself. You can run `/cortex recall <question>`. For specifics, grep `memory/chats/` too: on our test that answered best (see *Measured*). |
 | 🧰 **Native memory tools** | Claude gets real tools (no Bash permission prompts): `memory_search`, `memory_open`, `memory_timeline`, `memory_brief`, `memory_record`. | Installed by `./install.sh` (registers the local MCP server). |
 | ☕ **Catch-up brief** | A new chat starts knowing what changed since your last session in this project: new decisions, rejections, status changes, open items. | Automatic at session start. On demand: `/cortex brief [since DATE]`. |
 | 📡 **Live cross-chat updates** | Running two chats on one project? When one records a decision, the other hears about it with your next message. | Automatic (inject hook). |
@@ -64,11 +64,21 @@ Tested on a real project (7 chats, 6,107 transcript lines) with questions writte
 | held-out, finds ≥1 source line | 0.789 | **0.856** |
 | 64 development questions | 0.627 | **0.746** |
 
-**Answer accuracy** (Claude Sonnet answering, majority-of-3 per-fact judge, 2 runs per arm): see the table filled in by the latest run below.
+**Answer accuracy on the 90 held-out questions** (Claude Sonnet answering, majority-of-3 per-fact judge, mean of 2 runs per arm):
 
-ANSWER_TABLE_PLACEHOLDER
+| | v5 | grep over notes | v7 | v8 | grep over notes + **chat archive** |
+|---|---:|---:|---:|---:|---:|
+| overall | 0.828 | 0.806 | 0.792 | 0.797 | **0.903** |
+| relational (60) | 0.800 | 0.787 | 0.771 | 0.787 | **0.892** |
+| control (20) | 0.863 | 0.838 | 0.812 | 0.738 | **0.912** |
+| "not in memory" (10) | 0.925 | 0.850 | 0.875 | **0.975** | 0.950 |
+
+- **The chat archive is the big, significant win.** Giving the agent the same notes plus the archive raised accuracy from 0.806 to 0.903 (+9.7 points, 95% CI +4.4 to +15.3), and beat v5 by +7.5 (CI +1.7 to +13.3).
+- **v8's search tool doesn't turn the archive into better answers yet.** v8 scored 0.797, level with v5, v7 and grep, and 10.6 points behind plain grep over the same archive (CI −16.9 to −4.7). The transcripts show why: with v8, Claude read search snippets, opened only about a quarter of the pointers, and grepped the archive itself in 7 of 90 questions. With plain grep it read the raw chat lines about twice per question. The search pack works as another summary, and summaries lose detail.
+- **Use the archive directly.** For specific questions (names, numbers, exact wording, how things connect), `grep -rn -i <term> memory/chats/ memory/` and read around the hits. The next version makes this the default path: fuller passages from `memory_search`, and rules that send Claude to the archive for specifics. That change needs a fresh question set before any claim is made about it.
 
 **What didn't work, published on purpose:**
+- **v8's search as the only way in:** see above. Retrieval improved (+7.8 points of source lines in the pack), but answers didn't, because the agent read snippets instead of the archive.
 - **The graph:** typed relations plus Personalized PageRank never beat plain ranking on held-out questions. It's off by default.
 - **Records-first v7:** it scored below curated v5 on unseen questions (0.792 vs 0.828, not significant). That's why v8 makes the raw archive the stored value and records the index.
 - **"Facts as separate documents"** hurt retrieval (it matches LongMemEval's finding). Facts work as keys on the raw passage.
