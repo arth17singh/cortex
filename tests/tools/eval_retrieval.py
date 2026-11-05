@@ -23,8 +23,8 @@ def parse_ref(ref):
     if isinstance(ref, dict):
         nums = [int(x) for x in re.findall(r'\d+', ref.get('lines', ''))]
         return (ref.get('chat', '')[:8], min(nums), max(nums)) if nums else None
-    m = re.match(r'([0-9a-f]{8}):L(\d+)', ref or '')
-    return (m.group(1), int(m.group(2)), int(m.group(2))) if m else None
+    m = re.match(r'([0-9a-f]{8}):L?(\d+)(?:\s*-\s*L?(\d+))?', ref or '')
+    return (m.group(1), int(m.group(2)), int(m.group(3) or m.group(2))) if m else None
 
 
 SRC = {}
